@@ -14,8 +14,11 @@ multiboot2_boot_entry:
   cld
   cli
 
-  push rax
-  push rbx
+  ; Make sure this ends up where we want it when this gets popped off
+  sub rsp, 4
+  mov dword [rsp], r9d
+  sub rsp, 4
+  mov dword [rsp], r8d
 
   lgdt [rel g_gdtr]
   lidt [rel inv_idt]
@@ -136,7 +139,6 @@ multiboot2_bootstub:
     ; eax and ebx should contain multiboot information for the kernel
     ; xor eax, eax
     ; xor ebx, ebx
-    mov eax, 0x32
 
     xor ecx, ecx
     xor edx, edx
