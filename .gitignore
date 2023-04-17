@@ -1,0 +1,14 @@
+.git
+
+/cross_compiler/
+/cross_compiler/*
+/cross_compiler/**
+
+/out/
+/out/*
+/out/**
+
+*/*.elf
+*/*.EFI
+*/*.o
+*/*.d
