@@ -1793,8 +1793,8 @@ void draw_loading_screen(light_framebuffer_t* fb) {
   const size_t load_bar_x = centerX - load_bar_x_offset;
   size_t loading_scale = int_interpolate(0, max_status_progress, current_status_progress * 1024 / max_status_progress);
 
-  loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, load_bar_x_offset * 2, 26, 0xff101010);
-  loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, ((load_bar_x_offset * 2) / max_status_progress) * loading_scale, 26, 0xfff0f0f0);
+  loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, load_bar_x_offset * 2, 18, 0xff101010);
+  loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, ((load_bar_x_offset * 2) / max_status_progress) * loading_scale, 18, 0xfff0f0f0);
 
   //screen->fDrawBox(screen, centerX + anim_x, centerY, 15, 15, 0xffffff);
   //loading_screen->fDrawCircle(loading_screen, centerX + sin(anim_x) * 40, centerY, 15, 0xffffff);

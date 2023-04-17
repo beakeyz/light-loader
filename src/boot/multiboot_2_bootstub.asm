@@ -14,6 +14,9 @@ multiboot2_boot_entry:
   cld
   cli
 
+  push rax
+  push rbx
+
   lgdt [rel g_gdtr]
   lidt [rel inv_idt]
 
@@ -47,6 +50,11 @@ multiboot2_boot_entry:
   mov gs, ax
   mov ss, ax
 
+  pop ebx
+  pop eax
+
+  ; eax multiboot magic
+  ; ebx: multiboot addr
   ; ecx: bootstub
   ; edx: Range count
   ; esi: Ranges
@@ -71,8 +79,6 @@ multiboot2_bootstub:
 
 .tramp:
 
-  
-  
   ; Where is what?
   ; EDI = entry ptr
   ; ESI = ranges ptr
@@ -86,6 +92,8 @@ multiboot2_bootstub:
   push esi
   push edx
   push ecx
+  push ebx
+  push eax
 
   ; Prepare the values for rep movsb
   mov eax, esi
@@ -116,6 +124,8 @@ multiboot2_bootstub:
   .reloc_done:
 
     ; make sure we have entry_ptr at the top of the stack
+    pop eax
+    pop ebx
     pop ecx
     pop edx
     pop esi
@@ -123,8 +133,11 @@ multiboot2_bootstub:
 
     push edi
 
-    xor eax, eax
-    xor ebx, ebx
+    ; eax and ebx should contain multiboot information for the kernel
+    ; xor eax, eax
+    ; xor ebx, ebx
+    mov eax, 0x32
+
     xor ecx, ecx
     xor edx, edx
     xor esi, esi
