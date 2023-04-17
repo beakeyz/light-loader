@@ -142,3 +142,61 @@ LIGHT_STATUS buffer_load_elf32(uint8_t* elf, uintptr_t* entry_buffer, mem_range_
   return LIGHT_SUCCESS;
 }
 
+LIGHT_STATUS buffer_load_elf64(uint8_t* elf, uintptr_t* entry_buffer, mem_range_t** ranges, size_t* count) {
+  // validate elf
+  elf64_hdr_t* header = (void*)elf;
+
+  *ranges = NULL;
+  *count = 0;
+  *entry_buffer = header->entry;
+
+  for (uint16_t i = 0; i < header->ph_num; i++) {
+    elf64_phdr_t* section_header = (void*)elf + (header->phoff + i * header->phdr_size);
+
+
+    if (section_header->p_type == PT_LOAD) {
+      *count += 1;
+    }
+  }
+
+  if (*count == 0) {
+    light_log("No PT_LOAD phdrs found!\n\r");
+    return LIGHT_FAIL;
+  }
+
+  size_t idx = 0;
+  uintptr_t ranges_size = 0;
+  *ranges = pmm_malloc(sizeof(mem_range_t) * (*count), MEMMAP_BOOTLOADER_RECLAIMABLE);
+  
+  for (uint16_t i = 0; i < header->ph_num; i++) {
+    elf64_phdr_t* section_header = (void*)elf + (header->phoff + i * header->phdr_size);
+
+    if (section_header->p_type == PT_LOAD) {
+
+      void* buffer = pmm_malloc(section_header->p_memsz, MEMMAP_BOOTLOADER_RECLAIMABLE);
+      memcpy(buffer, elf + section_header->p_offset, section_header->p_filesz);
+
+      mem_range_t range = load_range((uintptr_t)buffer, section_header->p_paddr, section_header->p_memsz);
+
+      LIGHT_STATUS load_status = load_range_into_chain(ranges, &ranges_size, &range);
+
+      if (load_status == LIGHT_FAIL) {
+        light_log(L"Failed to load range into chain while buffering ELF!");
+        return LIGHT_FAIL;
+      }
+
+      if (*entry_buffer == header->entry
+          && *entry_buffer >= section_header->p_vaddr
+          && *entry_buffer < (section_header->p_vaddr + section_header->p_memsz)) {
+        *entry_buffer -= section_header->p_vaddr;
+        *entry_buffer += section_header->p_paddr;
+      }
+
+      idx++;
+    }
+
+  }
+
+  return LIGHT_SUCCESS;
+}
+

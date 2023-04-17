@@ -73,6 +73,12 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
 
   switch (elf_type) {
     case BITS64:
+
+      if (buffer_load_elf64(kernel->m_buffer, &entry_buffer, &ranges, &range_count) == LIGHT_FAIL) {
+        light_log(L"Could not load elf64 to buffer!\n\r");
+        for (;;) {}
+      }
+
       break;
     case BITS32:
 

@@ -29,7 +29,7 @@ override INTERNALLDFLAGS :=                \
 
 override INTERNALCFLAGS :=  \
     -std=gnu11              \
-		-nostdlib 							\
+	-nostdlib 				\
     -ffreestanding          \
     -fno-stack-protector    \
     -fno-stack-check        \
@@ -103,29 +103,31 @@ test.hdd:
 	parted -s test.hdd mklabel gpt
 	parted -s test.hdd mkpart primary 2048s 100%
 
+BOOTRT_DIR=bootrt
+KERNEL_ELF_NAME=kernel.elf
+
+# TODO: redo this test function for the real thing
 test:
 	@echo $(LOADER_C_SRC)
 	@echo $(LOADER_S_SRC)
 	$(MAKE) test.hdd
-	sudo rm -rf test_image/
+	sudo rm -rf $(BOOTRT_DIR)/
 	sudo rm -rf loopback_dev
-	mkdir -p test_image
+	mkdir -p $(BOOTRT_DIR)/
 	sudo losetup -Pf --show test.hdd > loopback_dev
 	sudo partprobe `cat loopback_dev`
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
-	sudo mount `cat loopback_dev`p1 test_image
-	sudo mkdir test_image/boot
-	sudo mkdir -p test_image/EFI/BOOT
-	sudo cp LIGHT.EFI test_image/EFI/BOOT/BOOTX64.EFI
-	sudo cp ../out/kernel.elf test_image/kernel.elf
-	sudo touch test_image/test.txt
-	sudo echo "hi I heard heather had a hard time heading to hardfought heads" | sudo tee test_image/test.txt
+	sudo mount `cat loopback_dev`p1 $(BOOTRT_DIR) 
+	# sudo mkdir $(BOOTRT_DIR)/boot
+	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
+	sudo cp LIGHT.EFI $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/kernel.elf
 	sync
-	sudo umount test_image/
+	sudo umount $(BOOTRT_DIR)/
 	sudo losetup -d `cat loopback_dev`
-	rm -rf test_image loopback_dev
+	rm -rf $(BOOTRT_DIR) loopback_dev
 
-	qemu-system-x86_64 -m 512M -net none -M q35 -hda test.hdd -bios ovmf/OVMF.fd
+	qemu-system-x86_64 -m 512M -net none -M q35 -hda test.hdd -bios ovmf/OVMF.fd -serial stdio
 
 # Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
 # be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 

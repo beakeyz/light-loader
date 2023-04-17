@@ -159,5 +159,6 @@ bool can_elf64_relocate(uint8_t* elf, elf64_hdr_t* header);
 LIGHT_STATUS load_elf64(uint8_t* elf_handle, uintptr_t* entry_buffer);
 
 LIGHT_STATUS buffer_load_elf32(uint8_t* elf, uintptr_t* entry_buffer, mem_range_t** ranges, size_t* count);
+LIGHT_STATUS buffer_load_elf64(uint8_t* elf, uintptr_t* entry_buffer, mem_range_t** ranges, size_t* count);
 
 #endif // !__LIGHTLOADER_LIBLELF__
