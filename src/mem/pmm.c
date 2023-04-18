@@ -3,6 +3,7 @@
 #include "efidef.h"
 #include "lib/liblmath.h"
 #include "lib/light_mainlib.h"
+#include "lib/multiboot.h"
 
 mmap_struct_t g_mmap_struct;
 
@@ -412,16 +413,56 @@ static LIGHT_STATUS _merge_mmap_entries (mmap_descriptor_t* orig_map, size_t* en
   return LIGHT_SUCCESS;
 }
 
-mmap_descriptor_t* get_raw_efi_memmap(size_t* entries) {
+static multiboot_uint32_t get_multiboot_mmap_type(uint32_t light_loader_type) {
+
+  switch (light_loader_type) {
+    /* TODO: what other types do we just mark as usable? */
+    case MEMMAP_EFI_RECLAIMABLE:
+    case MEMMAP_BOOTLOADER_RECLAIMABLE:
+    case MEMMAP_USABLE:
+      return MULTIBOOT_MEMORY_AVAILABLE;
+    case MEMMAP_BAD_MEMORY:
+      return MULTIBOOT_MEMORY_BADRAM;
+    case MEMMAP_ACPI_RECLAIMABLE:
+      return MULTIBOOT_MEMORY_ACPI_RECLAIMABLE;
+    case MEMMAP_ACPI_NVS:
+      return MULTIBOOT_MEMORY_NVS;
+  }
+
+  return 0;
+}
+
+multiboot_memory_map_t* get_raw_multiboot_memmap(size_t* count) {
 
   if (g_light_info.did_ditch_efi_services) {
 
-    mmap_descriptor_t* ret = g_mmap_struct.original_mmap;
+    for (uintptr_t i = 0; i < g_mmap_struct.original_mmap_entries; i++) {
+      mmap_descriptor_t desc = g_mmap_struct.original_mmap[i];
 
-    // Processing?
+      /* Does this do what we want it to? */
+      if (desc.type == MEMMAP_EFI_RECLAIMABLE) {
+        desc.type = MEMMAP_USABLE;
+      }
+    }
 
+    if (pmm_clean_entries_mmap(g_mmap_struct.original_mmap, &g_mmap_struct.original_mmap_entries) == LIGHT_FAIL) {
+      return (void*)1;
+    }
 
-    return ret;
+    multiboot_memory_map_t* map = pmm_malloc(sizeof(multiboot_memory_map_t) * g_mmap_struct.original_mmap_entries, MEMMAP_BOOTLOADER_RECLAIMABLE);
+
+    for (uintptr_t i = 0; i < g_mmap_struct.original_mmap_entries; i++) {
+      mmap_descriptor_t desc = g_mmap_struct.original_mmap[i];
+
+      map[i].len = desc.limit;
+      map[i].addr = desc.base;
+      map[i].type = get_multiboot_mmap_type(desc.type);
+      map[i].zero = 0;
+    }
+
+    *count = g_mmap_struct.original_mmap_entries;
+
+    return map;
   }
 
   return NULL;

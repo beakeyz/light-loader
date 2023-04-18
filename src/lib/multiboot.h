@@ -210,7 +210,7 @@ struct multiboot_tag_string
 {
   multiboot_uint32_t type;
   multiboot_uint32_t size;
-  char string[0];
+  char strn[0];
 };
 
 struct multiboot_tag_module

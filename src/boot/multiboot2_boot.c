@@ -14,18 +14,12 @@ typedef void (*MULTIBOOT_BOOTSTUB) (
   uint32_t ranges_count
 );
 
-extern void multiboot2_boot_entry(uint32_t entry, uint32_t ranges, uint32_t ranges_count, uint32_t new_stub_location, uint32_t multiboot_addr, uint32_t multiboot_magic);
+extern __attribute__((noreturn)) void multiboot2_boot_entry(uint32_t entry, uint32_t ranges, uint32_t ranges_count, uint32_t new_stub_location, uint32_t multiboot_addr, uint32_t multiboot_magic);
 extern char multiboot2_bootstub[];
 extern char multiboot2_bootstub_end[];
 
 struct multiboot_tag* multiboot_info;
 uintptr_t multiboot_current_index;
-
-static void secure_bootstub();
-
-void secure_bootstub() {
-  // TODO
-}
 
 __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuffer_t* fb) {
 
@@ -103,6 +97,11 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
 
   loading_screen_set_status_and_update("buffered elf", fb);
 
+  /* Relocate bootstub */
+  size_t bootstub_size = (size_t)multiboot2_bootstub_end - (size_t)&multiboot2_bootstub;
+  void* new_bootstub_location = pmm_malloc(bootstub_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
+  memcpy(new_bootstub_location, multiboot2_bootstub, bootstub_size);
+
   // TODO: include modules (ramdisk and such)
   mem_range_t* inclusive_ranges = pmm_malloc(sizeof(mem_range_t) * (range_count + 1), MEMMAP_BOOTLOADER_RECLAIMABLE);
 
@@ -110,12 +109,29 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   pmm_free(ranges, sizeof(mem_range_t) * range_count);
   ranges = inclusive_ranges;
 
+  /* Prepare multiboot */
+
   /* one page will prob be enough for everything right? */
   const size_t prealloced_mb_size = 0x1000;
+  const uintptr_t multiboot_new_loc = chain_find_highest_addr(&ranges, range_count);
+
   multiboot_info = pmm_malloc(prealloced_mb_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
   multiboot_current_index = 0;
 
+  mem_range_t multiboot_range = load_range((uintptr_t)multiboot_info, multiboot_new_loc, prealloced_mb_size);
+
+  /* This does make sure something gets copied over... */
+  /*
+  if (load_range_into_chain(&ranges, &range_count, &multiboot_range) == LIGHT_FAIL) {
+    loading_screen_set_status_and_update("Failed to load multiboot range", fb);
+    for (;;) {}
+  }
+  */
+
   memset(multiboot_info, 0x00, prealloced_mb_size);
+
+  /* Add start tag size */
+  multiboot_current_index += 8;
 
   /* Multiboot stuff */
   for (struct multiboot_header_tag *tag = (struct multiboot_header_tag*)(mb_header + 1); // header + 1 to skip the header struct.
@@ -123,7 +139,8 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
     tag = (struct multiboot_header_tag *)((uintptr_t)tag + ALIGN_UP(tag->size, MULTIBOOT_TAG_ALIGN))) {
 
     switch (tag->type) {
-      case MULTIBOOT_TAG_TYPE_FRAMEBUFFER: {
+      case MULTIBOOT_HEADER_TAG_FRAMEBUFFER: {
+
         struct multiboot_tag_framebuffer* tag = (struct multiboot_tag_framebuffer*)(multiboot_info + multiboot_current_index);
 
         tag->common.size = sizeof(struct multiboot_tag_framebuffer);
@@ -139,23 +156,45 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
 
         /* TODO: validate this field */
         tag->common.framebuffer_type = 0;
+
+        multiboot_current_index += ALIGN_UP(tag->common.size, MULTIBOOT_TAG_ALIGN);
       }
       break;
     }
-    
   }
-
-  size_t bootstub_size = (size_t)multiboot2_bootstub_end - (size_t)&multiboot2_bootstub;
-  void* new_bootstub_location = pmm_malloc(bootstub_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
-  memcpy(new_bootstub_location, multiboot2_bootstub, bootstub_size);
 
   exit_boot_services();
 
-  // MULTIBOOT2_BOOTLOADER_MAGIC
+  /* Mem map */
+  struct multiboot_tag_mmap* mmap_tag = (struct multiboot_tag_mmap*)(multiboot_info + multiboot_current_index);
 
-  multiboot2_boot_entry((uint32_t)entry_buffer, (uint32_t)((uintptr_t)ranges), (uint32_t)range_count, (uint32_t)((uintptr_t)new_bootstub_location), (uint32_t)((uintptr_t)multiboot_info), MULTIBOOT2_BOOTLOADER_MAGIC);
-  loading_screen_set_status_and_update("Trying to relocate...", fb);
+  size_t mmap_entries = 0x1000;
+  multiboot_memory_map_t* multiboot_map = get_raw_multiboot_memmap(&mmap_entries);
 
-  for (;;) {}
+  mmap_tag->type = MULTIBOOT_TAG_TYPE_MMAP;
+  mmap_tag->entry_size = sizeof(struct multiboot_tag_mmap);
+  mmap_tag->size = mmap_tag->entry_size + (sizeof(multiboot_memory_map_t) * mmap_entries);
+  mmap_tag->entry_version = 0;
 
+  for (uintptr_t i = 0; i < mmap_entries; i++) {
+    multiboot_memory_map_t map = multiboot_map[i];
+
+    mmap_tag->entries[i] = map;
+  } 
+
+  multiboot_current_index += ALIGN_UP(mmap_tag->size, MULTIBOOT_TAG_ALIGN);
+
+  /* End */
+
+  struct multiboot_tag* end_tag = (struct multiboot_tag*)(multiboot_info + multiboot_current_index);
+
+  end_tag->type = 0;
+  end_tag->size = sizeof(struct multiboot_tag);
+
+  multiboot_current_index += ALIGN_UP(end_tag->size, MULTIBOOT_TAG_ALIGN);
+
+  /* The bootstub overwrites this address, but the alignment seems weird? */
+  *(uintptr_t*)3850248 = 1;
+
+  multiboot2_boot_entry((uint32_t)entry_buffer, (uint32_t)((uintptr_t)ranges), (uint32_t)range_count, (uint32_t)((uintptr_t)new_bootstub_location), (uint32_t)((uintptr_t)multiboot_new_loc), MULTIBOOT2_BOOTLOADER_MAGIC);
 }

@@ -1,5 +1,6 @@
 #ifndef __LIGHTLOADER_PMM__
 #define __LIGHTLOADER_PMM__
+#include "lib/multiboot.h"
 #include <lib/light_mainlib.h>
 
 typedef struct {
@@ -62,7 +63,7 @@ LIGHT_STATUS pmm_clean_entries_mmap(mmap_descriptor_t* map, size_t* entries);
 void *pmm_malloc(size_t len, uint32_t type);
 void *pmm_free(void *ptr, size_t len);
 
-mmap_descriptor_t* get_raw_efi_memmap(size_t* entries);
+multiboot_memory_map_t* get_raw_multiboot_memmap(size_t* count);
 
 void pmm_debug_mmap();
 

@@ -100,7 +100,6 @@ multiboot2_bootstub:
 
   ; Prepare the values for rep movsb
   mov eax, esi
-  mov edx, edx
 
   ; relocate ranges
   ; ESI + 0 = current_location

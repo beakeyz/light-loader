@@ -2,7 +2,6 @@
 #define __LIGHT_TYPES__
 
 // I hate these headers, but I am too lazy atm to re-write them 
-#include "liblmath.h"
 #include <lib/libldef.h>
 #include <efi.h>
 

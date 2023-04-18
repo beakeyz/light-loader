@@ -1,5 +1,6 @@
 #include "ranges.h"
 #include "lib/light_mainlib.h"
+#include "mem/pmm.h"
 #include <lib/libldef.h>
 #include <stddef.h>
 
@@ -42,3 +43,19 @@ LIGHT_STATUS load_range_into_chain(mem_range_t** chain, size_t* chain_lenght, me
   return LIGHT_SUCCESS;
 }
 
+uintptr_t chain_find_highest_addr(mem_range_t** chain, size_t chain_lenght) {
+
+  uintptr_t current_highest = 0;
+  
+  for (uintptr_t i = 0; i < chain_lenght; i++) {
+    mem_range_t range = (*chain)[i];
+
+    if (range.m_target + range.m_range_size > current_highest)
+      current_highest = range.m_target + range.m_range_size;
+  }
+
+  /* Let's make sure this address is qword-aligned */
+  current_highest = ALIGN_UP(current_highest, 8);
+
+  return current_highest;
+}
