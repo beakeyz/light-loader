@@ -7,6 +7,7 @@
 #include "lib/light_mainlib.h"
 #include "mem/pmm.h"
 #include "mem/ranges.h"
+#include "system/acpi.h"
 
 typedef void (*MULTIBOOT_BOOTSTUB) (
   uint32_t entry,
@@ -18,7 +19,7 @@ extern __attribute__((noreturn)) void multiboot2_boot_entry(uint32_t entry, uint
 extern char multiboot2_bootstub[];
 extern char multiboot2_bootstub_end[];
 
-struct multiboot_tag* multiboot_info;
+uint8_t* multiboot_info;
 uintptr_t multiboot_current_index;
 
 __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuffer_t* fb) {
@@ -65,7 +66,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   loading_screen_set_status_and_update("Validated headers", fb);
 
   mem_range_t* ranges;
-  size_t range_count;
+  size_t range_count = 1;
   uintptr_t entry_buffer;
   uint32_t elf_type = get_elf_type(kernel->m_buffer);
 
@@ -102,13 +103,6 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   void* new_bootstub_location = pmm_malloc(bootstub_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
   memcpy(new_bootstub_location, multiboot2_bootstub, bootstub_size);
 
-  // TODO: include modules (ramdisk and such)
-  mem_range_t* inclusive_ranges = pmm_malloc(sizeof(mem_range_t) * (range_count + 1), MEMMAP_BOOTLOADER_RECLAIMABLE);
-
-  memcpy(inclusive_ranges, ranges, sizeof(mem_range_t) * range_count);
-  pmm_free(ranges, sizeof(mem_range_t) * range_count);
-  ranges = inclusive_ranges;
-
   /* Prepare multiboot */
 
   /* one page will prob be enough for everything right? */
@@ -120,20 +114,31 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
 
   mem_range_t multiboot_range = load_range((uintptr_t)multiboot_info, multiboot_new_loc, prealloced_mb_size);
 
-  /* This does make sure something gets copied over... */
-  /*
   if (load_range_into_chain(&ranges, &range_count, &multiboot_range) == LIGHT_FAIL) {
     loading_screen_set_status_and_update("Failed to load multiboot range", fb);
     for (;;) {}
   }
-  */
 
   memset(multiboot_info, 0x00, prealloced_mb_size);
 
-  /* Add start tag size */
+  /* Start tag */
   multiboot_current_index += 8;
 
-  /* Multiboot stuff */
+  /* Name tag */
+
+  /* TODO: move global bootloader data (i.e. name, version, ect) somewhere nice */
+  const char* bootloader_name = "__LightLoader__";
+  struct multiboot_tag_string* bootloader_name_tag = (struct multiboot_tag_string*)(multiboot_info + multiboot_current_index);
+
+  bootloader_name_tag->type = MULTIBOOT_TAG_TYPE_BOOT_LOADER_NAME;
+  bootloader_name_tag->size = sizeof(struct multiboot_tag_string) + strlen(bootloader_name);
+
+  memset(bootloader_name_tag->strn, 0, strlen(bootloader_name) + 1);
+  strcpy(bootloader_name_tag->strn, bootloader_name);
+
+  multiboot_current_index += ALIGN_UP(bootloader_name_tag->size, MULTIBOOT_TAG_ALIGN);
+
+/* Multiboot stuff */
   for (struct multiboot_header_tag *tag = (struct multiboot_header_tag*)(mb_header + 1); // header + 1 to skip the header struct.
     tag < (struct multiboot_header_tag *)((uintptr_t)mb_header + mb_header->header_length) && tag->type != MULTIBOOT_HEADER_TAG_END;
     tag = (struct multiboot_header_tag *)((uintptr_t)tag + ALIGN_UP(tag->size, MULTIBOOT_TAG_ALIGN))) {
@@ -163,6 +168,30 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
     }
   }
 
+  sdt_ptrs_t ptrs = get_sdtp();
+  
+  if (ptrs.xsdp) {
+    /* Make xsdp tag */
+    struct multiboot_tag_new_acpi* xsdp_tag = (struct multiboot_tag_new_acpi*)(multiboot_info + multiboot_current_index);
+    xsdp_tag->size = sizeof(struct multiboot_tag_new_acpi) + sizeof(rsdp_t);
+    xsdp_tag->type = MULTIBOOT_TAG_TYPE_ACPI_NEW;
+    // Copy the entire structure into this tag
+    memcpy(xsdp_tag->rsdp, ptrs.xsdp, sizeof(rsdp_t));
+
+    multiboot_current_index += ALIGN_UP(xsdp_tag->size, MULTIBOOT_TAG_ALIGN);
+  } else if (ptrs.rsdp) {
+    /* Make rsdp tag */
+    struct multiboot_tag_new_acpi* rsdp_tag = (struct multiboot_tag_new_acpi*)(multiboot_info + multiboot_current_index);
+    rsdp_tag->size = sizeof(struct multiboot_tag_new_acpi) + sizeof(rsdp_t);
+    rsdp_tag->type = MULTIBOOT_TAG_TYPE_ACPI_NEW;
+    // Copy the entire structure into this tag
+    memcpy(rsdp_tag->rsdp, ptrs.rsdp, sizeof(rsdp_t));
+
+    multiboot_current_index += ALIGN_UP(rsdp_tag->size, MULTIBOOT_TAG_ALIGN);
+  } else {
+    /* Die */
+  }
+
   exit_boot_services();
 
   /* Mem map */
@@ -172,8 +201,8 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   multiboot_memory_map_t* multiboot_map = get_raw_multiboot_memmap(&mmap_entries);
 
   mmap_tag->type = MULTIBOOT_TAG_TYPE_MMAP;
-  mmap_tag->entry_size = sizeof(struct multiboot_tag_mmap);
-  mmap_tag->size = mmap_tag->entry_size + (sizeof(multiboot_memory_map_t) * mmap_entries);
+  mmap_tag->entry_size = sizeof(multiboot_memory_map_t);
+  mmap_tag->size = sizeof(struct multiboot_tag_mmap) + (sizeof(multiboot_memory_map_t) * mmap_entries);
   mmap_tag->entry_version = 0;
 
   for (uintptr_t i = 0; i < mmap_entries; i++) {
@@ -192,9 +221,6 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   end_tag->size = sizeof(struct multiboot_tag);
 
   multiboot_current_index += ALIGN_UP(end_tag->size, MULTIBOOT_TAG_ALIGN);
-
-  /* The bootstub overwrites this address, but the alignment seems weird? */
-  *(uintptr_t*)3850248 = 1;
 
   multiboot2_boot_entry((uint32_t)entry_buffer, (uint32_t)((uintptr_t)ranges), (uint32_t)range_count, (uint32_t)((uintptr_t)new_bootstub_location), (uint32_t)((uintptr_t)multiboot_new_loc), MULTIBOOT2_BOOTLOADER_MAGIC);
 }

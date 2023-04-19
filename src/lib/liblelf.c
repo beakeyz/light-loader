@@ -147,7 +147,6 @@ LIGHT_STATUS buffer_load_elf64(uint8_t* elf, uintptr_t* entry_buffer, mem_range_
   elf64_hdr_t* header = (void*)elf;
 
   *ranges = NULL;
-  *count = 0;
   *entry_buffer = header->entry;
 
   for (uint16_t i = 0; i < header->ph_num; i++) {

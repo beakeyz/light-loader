@@ -19,6 +19,14 @@ multiboot2_boot_entry:
   mov dword [rsp], r9d
   sub rsp, 4
   mov dword [rsp], r8d
+  sub rsp, 4
+  mov dword [rsp], ecx
+  sub rsp, 4
+  mov dword [rsp], edx
+  sub rsp, 4
+  mov dword [rsp], esi
+  sub rsp, 4
+  mov dword [rsp], edi
 
   lgdt [rel g_gdtr]
   lidt [rel inv_idt]
@@ -53,9 +61,29 @@ multiboot2_boot_entry:
   mov gs, ax
   mov ss, ax
 
+  ; Load invalid ldt
+  xor eax, eax
+  lldt ax
+
+  mov eax, 0x00000011
+  mov cr0, eax
+
+  mov ecx, 0xC0000000
+  xor eax, eax
+  xor edx, edx
+  wrmsr
+
+  xor eax, eax
+  mov cr4, eax
+
+  pop edi
+  pop esi
+  pop edx
+  pop ecx
   pop ebx
   pop eax
 
+  ; Desired layout: 
   ; eax multiboot magic
   ; ebx: multiboot addr
   ; ecx: bootstub
@@ -81,11 +109,6 @@ multiboot2_bootstub:
   times 4-($-multiboot2_bootstub) db 0
 
 .tramp:
-
-  ; Where is what?
-  ; EDI = entry ptr
-  ; ESI = ranges ptr
-  ; EDX = ranges count
 
   mov esp, ecx
   add esp, .stub_stack_top - multiboot2_bootstub
