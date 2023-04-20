@@ -1,6 +1,8 @@
 #include "screen.h"
 #include "lib/liblmath.h"
+#include "lib/light_mainlib.h"
 #include "mem/pmm.h"
+#include "font.h"
 
 LIGHT_STATUS _init_doublebuffer (
   light_screen_t*
@@ -55,6 +57,21 @@ LIGHT_STATUS _draw_circle (
   uint32_t clr
 );
 
+LIGHT_STATUS _draw_char (
+  struct light_screen* screen,
+  char c,
+  size_t x,
+  size_t y,
+  uint32_t clr
+);
+
+LIGHT_STATUS _draw_string(
+  struct light_screen* screen,
+  const char* str,
+  size_t x,
+  size_t y,
+  uint32_t clr
+);
 
 light_screen_t* init_light_screen (light_framebuffer_t* fb) {
 
@@ -72,6 +89,8 @@ light_screen_t* init_light_screen (light_framebuffer_t* fb) {
   ret->fDrawPixel = _draw_pixel;
   ret->fGetPixelColor = _get_pixel_color;
   ret->fDrawCircle = _draw_circle;
+  ret->fDrawChar = _draw_char;
+  ret->fDrawString = _draw_string;
 
   ret->fInitDoubleBuffer(ret);
 
@@ -171,6 +190,35 @@ LIGHT_STATUS _draw_circle (struct light_screen* screen, size_t x, size_t y, size
   return LIGHT_SUCCESS;
 }
 
+LIGHT_STATUS _draw_char (struct light_screen* screen, char c, size_t x, size_t y, uint32_t clr) {
+
+  for (uint8_t _y = 0; _y < LIGHT_FONT_CHAR_HEIGHT; _y++) {
+    for (uint8_t _x = 0; _x < LIGHT_FONT_CHAR_WIDTH; _x++) {
+
+      uint8_t glyph_part = light_font[c*16 + _y];
+
+      screen->fDrawPixel(screen, x + _x, y + _y, 0x00000000);
+
+      if (glyph_part & (1 << _x)) {
+        screen->fDrawPixel(screen, x + _x, y + _y, clr);
+      }
+    }
+  }
+
+  return LIGHT_SUCCESS;
+}
+
+LIGHT_STATUS _draw_string (struct light_screen* screen, const char* c, size_t x, size_t y, uint32_t clr) {
+
+  uint64_t index = 0;
+
+  while (c[index]) {
+    screen->fDrawChar(screen, c[index], x + index * LIGHT_FONT_CHAR_WIDTH, y, clr);
+    index++;
+  }
+
+  return LIGHT_FAIL;
+}
 
 LIGHT_STATUS _init_doublebuffer (light_screen_t* screen) {
 
@@ -195,3 +243,4 @@ LIGHT_STATUS _delete_doublebuffer (light_screen_t* screen) {
 
   return LIGHT_FAIL;
 }
+

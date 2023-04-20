@@ -98,16 +98,17 @@ clean:
 # File structure as done here: EFI/BOOT/BOOTX64.EFI
 # This makes sure the firmware is able to find our loader, otherwise it dies =)
 test.hdd:
-	rm -f test.hdd
-	dd if=/dev/zero bs=1M count=0 seek=64 of=test.hdd
-	parted -s test.hdd mklabel gpt
-	parted -s test.hdd mkpart primary 2048s 100%
+	rm -f $@
+	dd if=/dev/zero bs=512 count=1024 of=$@
+	truncate -s 64M $@
+	parted $@ mklabel gpt
+	parted $@ mkpart primary 2Mib 100%
 
 BOOTRT_DIR=bootrt
 KERNEL_ELF_NAME=kernel.elf
 
 # TODO: redo this test function for the real thing
-test:
+image:
 	@echo $(LOADER_C_SRC)
 	@echo $(LOADER_S_SRC)
 	$(MAKE) test.hdd
@@ -127,7 +128,8 @@ test:
 	sudo losetup -d `cat loopback_dev`
 	rm -rf $(BOOTRT_DIR) loopback_dev
 
-	qemu-system-x86_64 -m 512M -net none -M q35 -hda test.hdd -bios ovmf/OVMF.fd -serial stdio
+test: image
+	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd
 
 # Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
 # be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 

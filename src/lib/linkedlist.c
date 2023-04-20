@@ -5,15 +5,21 @@ void delete_linkedlist(linked_list_t* list) {
   // walk entries and free them
   // free list if it was created on the heap
 
-  linked_node_t* next = list->m_tail;
+  linked_node_t* next = list->m_head;
   while (next != NULL) {
+
+    /*
+    if (next->m_data)
+      pmm_free(next->m_data, next->m_data_size);
+
+    */
 
     pmm_free(next, sizeof(linked_node_t));
 
     next = next->m_next;
   }
   
-  // TODO: check if the list was created on the heap
+  pmm_free(list, sizeof(linked_list_t));
 }
 
 linked_list_t* make_linkedlist() {
@@ -23,7 +29,6 @@ linked_list_t* make_linkedlist() {
   list->fDelete = delete_linkedlist;
   list->m_entries = 0;
   list->m_head = NULL;
-  list->m_tail = NULL;
     
   return list;
 }
@@ -35,12 +40,10 @@ void linkedlist_add_back(linked_list_t* list, void* data, size_t size) {
   node->m_data_size = size;
   node->m_next = NULL;
 
-  if (list->m_tail == NULL && list->m_head == NULL) {
-    list->m_tail = node;
+  if (list->m_head == NULL) {
     list->m_head = node;
   } else {
-    node->m_next = list->m_tail;
-    list->m_tail = node;
+    list->m_head->m_next = node;
   }
 }
 
@@ -51,8 +54,7 @@ void linkedlist_add_front(linked_list_t* list, void* data, size_t size) {
   node->m_data_size = size;
   node->m_next = NULL;
 
-  if (list->m_tail == NULL && list->m_head == NULL) {
-    list->m_tail = node;
+  if (list->m_head == NULL) {
     list->m_head = node;
   } else {
     list->m_head->m_next = node;

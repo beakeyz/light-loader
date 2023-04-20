@@ -1,4 +1,6 @@
 #include "loading_screen.h"
+#include "drivers/display/framebuffer.h"
+#include "frontend/font.h"
 #include "frontend/screen.h"
 #include "lib/liblmath.h"
 #include "lib/light_mainlib.h"
@@ -1757,24 +1759,29 @@ static const struct {
   "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000",
 };
 
-#define max_status_progress 9
+#define max_status_progress 10
 
 light_screen_t* loading_screen = NULL;
 char current_status_msg[64];
 size_t current_status_progress;
 
-void draw_loading_screen(light_framebuffer_t* fb) {
+void init_loading_screen(light_framebuffer_t *buffer) {
+  loading_screen = init_light_screen(buffer);
+  strcpy(current_status_msg, "Loading...");
+  current_status_progress = 0;
+}
+
+void draw_loading_screen() {
+
+  if (loading_screen == NULL) {
+  }
+  light_framebuffer_t* fb = loading_screen->m_fb;
 
   const size_t centerX = fb->m_fb_width / 2;
   const size_t centerY = fb->m_fb_height / 2;
 
-  if (fb != NULL && loading_screen == NULL) {
-    loading_screen = init_light_screen(fb);
-    strcpy(current_status_msg, "Loading...");
-    current_status_progress = 0;
-  }
 
-  loading_screen->fDrawBox(loading_screen, 0, 0, fb->m_fb_width, fb->m_fb_height, 0x000000);
+  // loading_screen->fDrawBox(loading_screen, 0, 0, fb->m_fb_width, fb->m_fb_height, 0x000000);
 
   for (uint8_t i = 0; i < lightloader_logo.height; i++) {
     for (uint8_t j = 0; j < lightloader_logo.width; j++) {
@@ -1797,27 +1804,39 @@ void draw_loading_screen(light_framebuffer_t* fb) {
   loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, ((load_bar_x_offset * 2) / max_status_progress) * loading_scale, 18, 0xfff0f0f0);
 
   //screen->fDrawBox(screen, centerX + anim_x, centerY, 15, 15, 0xffffff);
-  //loading_screen->fDrawCircle(loading_screen, centerX + sin(anim_x) * 40, centerY, 15, 0xffffff);
+  //loading_screen->fDrawCircle(loading_screen, 0,0, 15, 0xffffff);
 
-  loading_screen->fSwapBuffers(loading_screen);
+  // loading_screen->fSwapBuffers(loading_screen);
 
 }
 
 void loading_screen_set_status(const char *status_msg) {
 
   if (strlen(status_msg) < 63) {
+    memset(current_status_msg, 0, 64);
     strcpy(current_status_msg, status_msg);
   }
 
+  loading_screen->fDrawBox(loading_screen, 0, 0, loading_screen->m_fb->m_fb_width, LIGHT_FONT_CHAR_HEIGHT, 0x00);
+  loading_screen->fDrawString(loading_screen, current_status_msg, 0, 0, 0xFFFFFFFF);
+
   if (current_status_progress >= max_status_progress) {
     current_status_progress = max_status_progress;
+    // Clear the screen once we've done all the progressions
     return;
   }
+  loading_screen->fSwapBuffers(loading_screen);
+}
+
+/* Swap gets done when we update the status message */
+void loading_screen_set_status_and_update(const char* status_msg) {
+  draw_loading_screen();
+  loading_screen_set_status(status_msg);
 
   current_status_progress++;
 }
 
-void loading_screen_set_status_and_update(const char* status_msg, light_framebuffer_t* fb) {
-  loading_screen_set_status(status_msg);
-  draw_loading_screen(fb);
+void clear_loading_screen() {
+  loading_screen->fDrawBox(loading_screen, 0, 0, loading_screen->m_fb->m_fb_width, loading_screen->m_fb->m_fb_height, 0x00000000);
+  loading_screen->fSwapBuffers(loading_screen);
 }

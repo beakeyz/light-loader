@@ -61,20 +61,7 @@ multiboot2_boot_entry:
   mov gs, ax
   mov ss, ax
 
-  ; Load invalid ldt
-  xor eax, eax
-  lldt ax
-
-  mov eax, 0x00000011
-  mov cr0, eax
-
-  mov ecx, 0xC0000000
-  xor eax, eax
-  xor edx, edx
-  wrmsr
-
-  xor eax, eax
-  mov cr4, eax
+  ; FIXME: do we need to reset special registers?
 
   pop edi
   pop esi
@@ -109,6 +96,8 @@ multiboot2_bootstub:
   times 4-($-multiboot2_bootstub) db 0
 
 .tramp:
+
+  hlt
 
   mov esp, ecx
   add esp, .stub_stack_top - multiboot2_bootstub

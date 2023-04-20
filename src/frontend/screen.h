@@ -134,6 +134,8 @@ typedef struct light_screen {
   DRAW_BOX fDrawBox;
   DRAW_HORIZONTAL_GRADIENT_BOX fDrawBoxGradientHorizontal;
   DRAW_CIRCLE fDrawCircle;
+  DRAW_CHAR fDrawChar;
+  DRAW_STRING fDrawString;
 
 } __attribute__((packed)) light_screen_t;
 

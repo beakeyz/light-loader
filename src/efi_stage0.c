@@ -44,17 +44,18 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
   }
 
   light_framebuffer_t* framebuffer = init_framebuffer(1024, 768, 32);
-  draw_loading_screen(framebuffer);
-  loading_screen_set_status_and_update("Setting up...", framebuffer);
+  init_loading_screen(framebuffer);
+
+  loading_screen_set_status_and_update("Setting up...");
 
   // this is prob so useless lmao
   install_gdt();
 
-  loading_screen_set_status_and_update("Loaded internals", framebuffer);
+  loading_screen_set_status_and_update("Loading apics...");
     
   init_apics();
-  
-  loading_screen_set_status_and_update("Loaded apics", framebuffer);
+
+  loading_screen_set_status_and_update("Disk...");
 
   // FIXME: (is this useless because we use uefi BootServices for 'interrupts'?)
 

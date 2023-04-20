@@ -25,24 +25,23 @@ uintptr_t multiboot_current_index;
 __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuffer_t* fb) {
 
   // open file
+  loading_screen_set_status_and_update("Opening ELF file");
 
   handle_t* kernel_handle = open_file(g_volume_store.store[1], path);
 
   if (kernel_handle == NULL) {
-    light_log(L"Failed to get handle!\n\r");
+    loading_screen_set_status("Failed to get handle!");
     hang();
   }
 
-  loading_screen_set_status_and_update("Opend ELF file", fb);
+  loading_screen_set_status_and_update("Reading ELF file");
 
   size_t kernel_size = kernel_handle->file_size;
   loaded_handle_t* kernel = f_readall(kernel_handle);
 
-  loading_screen_set_status_and_update("Read ELF file", fb);
+  loading_screen_set_status_and_update("Cleaning ELF file");
 
   kernel_handle->fCleanHandle(kernel_handle);
-
-  loading_screen_set_status_and_update("Cleaned ELF file", fb);
 
   struct multiboot_header* mb_header = NULL;
 
@@ -54,6 +53,8 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
     }
   }
 
+  loading_screen_set_status_and_update("Validating headers");
+
   // validate header
   uint32_t zero_checksum = mb_header->magic + mb_header->header_length + mb_header->architecture + mb_header->checksum;
   
@@ -63,7 +64,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
     for (;;) {}
   }
 
-  loading_screen_set_status_and_update("Validated headers", fb);
+  loading_screen_set_status_and_update("Loading ELF");
 
   mem_range_t* ranges;
   size_t range_count = 1;
@@ -96,8 +97,6 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
       break;
   }
 
-  loading_screen_set_status_and_update("buffered elf", fb);
-
   /* Relocate bootstub */
   size_t bootstub_size = (size_t)multiboot2_bootstub_end - (size_t)&multiboot2_bootstub;
   void* new_bootstub_location = pmm_malloc(bootstub_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
@@ -115,7 +114,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   mem_range_t multiboot_range = load_range((uintptr_t)multiboot_info, multiboot_new_loc, prealloced_mb_size);
 
   if (load_range_into_chain(&ranges, &range_count, &multiboot_range) == LIGHT_FAIL) {
-    loading_screen_set_status_and_update("Failed to load multiboot range", fb);
+    loading_screen_set_status_and_update("Failed to load multiboot range");
     for (;;) {}
   }
 
@@ -221,6 +220,8 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   end_tag->size = sizeof(struct multiboot_tag);
 
   multiboot_current_index += ALIGN_UP(end_tag->size, MULTIBOOT_TAG_ALIGN);
+
+  clear_loading_screen();
 
   multiboot2_boot_entry((uint32_t)entry_buffer, (uint32_t)((uintptr_t)ranges), (uint32_t)range_count, (uint32_t)((uintptr_t)new_bootstub_location), (uint32_t)((uintptr_t)multiboot_new_loc), MULTIBOOT2_BOOTLOADER_MAGIC);
 }

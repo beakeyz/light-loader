@@ -169,6 +169,5 @@ void light_log(const short unsigned int* msg) {
 }
 
 void hang() {
-  light_log(L"Hung!\n\r");
   for (;;) {}
 } 

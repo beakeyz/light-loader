@@ -1,7 +1,10 @@
 #include "fat32_fs.h"
 #include "drivers/disk/fs/filesystem.h"
 #include "drivers/disk/volume.h"
+#include "efiser.h"
+#include "frontend/loading_screen.h"
 #include "lib/light_mainlib.h"
+#include "lib/linkedlist.h"
 #include "mem/pmm.h"
 
 // TODO: clean this mess up
@@ -79,11 +82,29 @@ LIGHT_STATUS _load_clusters(FatManager* manager, void* buffer, uint32_t* cluster
   return LIGHT_SUCCESS;
 }
 
-uint32_t* _read_clustr_chain(FatManager* manager, uint32_t cluster, size_t chain_size) {
+uint32_t* _read_clustr_chain(FatManager* manager, uint32_t cluster, size_t* _chain_size) {
   
+  if (cluster < 0x2 || cluster > FAT32_CLUSTER_LIMIT) {
+    return 0;
+  }
+
+  size_t chain_size;
+  uint32_t check_cluster = cluster;
+
+  for (chain_size = 1; ; chain_size++) {
+    if (manager->fLoadCluster(manager, &check_cluster, check_cluster) == LIGHT_SUCCESS) {
+      if (check_cluster < 0x2 || cluster > FAT32_CLUSTER_LIMIT) {
+        break;
+      }
+      continue;
+    }
+    break;
+  }
+
   if (chain_size == 0) {
     return NULL;
   }
+
 
   uint32_t* clustr_chain = pmm_malloc(chain_size * sizeof(uint32_t), MEMMAP_BOOTLOADER_RECLAIMABLE);
 
@@ -94,28 +115,9 @@ uint32_t* _read_clustr_chain(FatManager* manager, uint32_t cluster, size_t chain
     manager->fLoadCluster(manager, &cluster_idx, cluster_idx);
   }
 
+  *_chain_size = chain_size;
+
   return clustr_chain;
-}
-
-size_t _get_cluster_chain_length(FatManager* manager, uint32_t cluster) {
-  if (cluster < 0x2 || cluster > FAT32_CLUSTER_LIMIT) {
-    return 0;
-  }
-
-  size_t ret;
-  uint32_t check_cluster = cluster;
-
-  for (ret = 1; ; ret++) {
-    if (manager->fLoadCluster(manager, &check_cluster, check_cluster) == LIGHT_SUCCESS) {
-      if (check_cluster < 0x2 || cluster > FAT32_CLUSTER_LIMIT) {
-        break;
-      }
-      continue;
-    }
-    break;
-  }
-
-  return ret;
 }
 
 // "open" a FAT dir/file through its relative path (name) and its directory handle
@@ -131,8 +133,8 @@ LIGHT_STATUS _open_fat_directory_entry(FatManager* manager, fat_dir_entry_t* dir
   uint32_t cluster_number = directory->dir_frst_cluster_lo | (uint32_t)directory->dir_frst_cluster_hi << 16;
   size_t cluster_size = fat_bpb->sectors_per_cluster * fat_bpb->bytes_per_sector;
 
-  size_t cluster_chain_length = manager->fGetClusterChainLength(manager, cluster_number);
-  uint32_t* cluster_chain = manager->fReadClusterChain(manager, cluster_number, cluster_chain_length);
+  size_t cluster_chain_length;
+  uint32_t* cluster_chain = manager->fReadClusterChain(manager, cluster_number, &cluster_chain_length);
 
   size_t cluster_chain_size = cluster_chain_length * cluster_size;
 
@@ -203,6 +205,8 @@ LIGHT_STATUS init_fat_management(FatManager *manager, light_volume_t* volume) {
 
   if (strncmp(fat32_ident, "FAT", 3) != 0 && strncmp(fat32_ident_fancy, "FAT32", 5) != 0) {
     g_light_info.sys_table->ConOut->OutputString(g_light_info.sys_table->ConOut, (CHAR16*)L"[ERROR] Wrong partition identifier\n\r");
+    loading_screen_set_status("Wrong partition identifier!");
+    hang();
     // wrong partition format
     return LIGHT_FAIL;
   }
@@ -215,7 +219,7 @@ LIGHT_STATUS init_fat_management(FatManager *manager, light_volume_t* volume) {
   manager->fLoadClusters = _load_clusters;
   manager->fLoadCluster = _load_cluster;
   manager->fReadClusterChain = _read_clustr_chain;
-  manager->fGetClusterChainLength = _get_cluster_chain_length;
+  // manager->fGetClusterChainLength = _get_cluster_chain_length;
   manager->fOpenFatDirectoryEntry = _open_fat_directory_entry;
 
   return LIGHT_SUCCESS;
@@ -269,8 +273,10 @@ handle_t* open_fat32(light_volume_t* volume, const char* path) {
 
   // NOTE: doing this for every file open might be a bit overkill, could this be done in a better way?
   if (init_fat_management(manager, volume) != LIGHT_SUCCESS) {
+    loading_screen_set_status("Failed to initialize fat management");
     return NULL;
   }
+
 
   fat_bpb_t fat_bpb = manager->m_fat_bpb;
 
@@ -284,7 +290,7 @@ handle_t* open_fat32(light_volume_t* volume, const char* path) {
   // fatspec =D
   if (cluster_count < 65525) {
     // yikes, wrong partition format again =/
-    g_light_info.sys_table->ConOut->OutputString(g_light_info.sys_table->ConOut, (CHAR16*)L"Wrong partition format\n\r");
+    loading_screen_set_status("Wrong partition format (cc < 65525)");
     return NULL;
   }
 
@@ -292,13 +298,15 @@ handle_t* open_fat32(light_volume_t* volume, const char* path) {
   fat_dir_entry_t current_dir = {0};
 
   fat_dir_entry_t* current_dir_ptr;
-  fat_dir_entry_t next_dir_entry;
+  fat_dir_entry_t next_dir_entry = {0};
   char path_buffer[FAT32_MAX_FILENAME_LENGTH];
   uint32_t prev_seperator = 0;
 
   current_dir.dir_frst_cluster_lo = fat_bpb.root_cluster & 0xFFFF;
   current_dir.dir_frst_cluster_hi = fat_bpb.root_cluster >> 16;
   current_dir_ptr = &current_dir;
+
+  uint16_t max_spin = 0xFFFF;
 
   do {
     for (uint32_t i = 0; i < FAT32_MAX_FILENAME_LENGTH; i++) {
@@ -315,28 +323,35 @@ handle_t* open_fat32(light_volume_t* volume, const char* path) {
     }
 
     if (manager->fOpenFatDirectoryEntry(manager, current_dir_ptr, &next_dir_entry, path_buffer) != LIGHT_SUCCESS) {
-      g_light_info.sys_table->ConOut->OutputString(g_light_info.sys_table->ConOut, (CHAR16*)L"[ERROR] Failed to find file\n\r");
+      loading_screen_set_status("Failed to open directory, file probably does not exist");
       return NULL;
     }
 
+    loading_screen_set_status("Opended first dir");
+
     // we could find this shit
     if ((next_dir_entry.dir_attr & (FAT_ATTR_DIRECTORY|FAT_ATTR_VOLUME_ID)) == FAT_ATTR_DIRECTORY) {
+      loading_screen_set_status("Next dir entry");
       current_dir = next_dir_entry;
       current_dir_ptr = &current_dir;
     } else {
+
+      loading_screen_set_status("Found the file");
+
       // found the file
       handle_t* file_handle = pmm_malloc(sizeof(handle_t), MEMMAP_BOOTLOADER_RECLAIMABLE);
       fat_file_handle_t* fat_handle = pmm_malloc(sizeof(fat_file_handle_t), MEMMAP_BOOTLOADER_RECLAIMABLE);
 
-      uint32_t file_cluster = next_dir_entry.dir_frst_cluster_lo | (uintptr_t)next_dir_entry.dir_frst_cluster_hi << 16; 
+      uint32_t file_cluster = next_dir_entry.dir_frst_cluster_lo | ((uintptr_t)next_dir_entry.dir_frst_cluster_hi << 16); 
 
       // FAT specific data
       fat_handle->m_manager = manager;
       fat_handle->m_first_cluster_lo = next_dir_entry.dir_frst_cluster_lo;
       fat_handle->m_first_cluster_hi = next_dir_entry.dir_frst_cluster_hi;
       fat_handle->m_filesize_bytes = next_dir_entry.filesize_bytes;
-      fat_handle->m_cluster_count = manager->fGetClusterChainLength(manager, file_cluster);
-      fat_handle->m_cluster_chain = manager->fReadClusterChain(manager, file_cluster, fat_handle->m_cluster_count);
+      // fat_handle->m_cluster_count = manager->fGetClusterChainLength(manager, file_cluster);
+      loading_screen_set_status(to_string(fat_handle->m_filesize_bytes));
+      fat_handle->m_cluster_chain = manager->fReadClusterChain(manager, file_cluster, &fat_handle->m_cluster_count);
 
       fat_handle->CleanFatHandle = (void*)_clean_fat_fhandle;
 
@@ -356,7 +371,9 @@ handle_t* open_fat32(light_volume_t* volume, const char* path) {
 
       return file_handle;
     }
-  } while (1);
+
+    max_spin--;
+  } while (max_spin);
 
   // - detect the end of the path with the target file
   // - create a file_handle_t and stuff it with data =D

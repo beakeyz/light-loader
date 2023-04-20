@@ -104,7 +104,7 @@ typedef struct _fat_file_handle {
   uint32_t m_filesize_bytes;
 
   uint32_t* m_cluster_chain;
-  uint32_t m_cluster_count;
+  size_t m_cluster_count;
 
   CLEAN_FAT_FHANDLE CleanFatHandle;
 
@@ -131,7 +131,7 @@ typedef LIGHT_STATUS (*LOAD_CLUSTERS) (
 typedef uint32_t* (*READ_CLUSTER_CHAIN) (
   struct _FatManager* _fat_manager,
   uint32_t cluster,
-  size_t chain_size
+  size_t* chain_size
 );
 
 typedef size_t (*GET_CLUSTER_CHAIN_LENGTH) (
@@ -155,7 +155,7 @@ typedef struct _FatManager {
   LOAD_CLUSTER fLoadCluster;
   LOAD_CLUSTERS fLoadClusters;
   READ_CLUSTER_CHAIN fReadClusterChain;
-  GET_CLUSTER_CHAIN_LENGTH fGetClusterChainLength;
+  // GET_CLUSTER_CHAIN_LENGTH fGetClusterChainLength;
   OPEN_FAT_DIRECTORY_ENTRY fOpenFatDirectoryEntry;
 } FatManager;
 
