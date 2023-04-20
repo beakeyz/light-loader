@@ -30,10 +30,10 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
 
   init_light_lib(img_handle, syst);
 
-  if (init_periodic_timer() != LIGHT_SUCCESS) {
-    light_log(L"[FATAL] Failed to initialize timer!\n\r");
-    hang();
-  }
+  //if (init_periodic_timer() != LIGHT_SUCCESS) {
+  //  light_log(L"[FATAL] Failed to initialize timer!\n\r");
+  //  hang();
+  //}
 
   init_kb_driver();
 
