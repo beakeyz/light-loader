@@ -99,37 +99,44 @@ clean:
 # This makes sure the firmware is able to find our loader, otherwise it dies =)
 test.hdd:
 	rm -f $@
-	dd if=/dev/zero bs=512 count=1024 of=$@
-	truncate -s 64M $@
-	parted $@ mklabel gpt
-	parted $@ mkpart primary 2Mib 100%
+	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=128 && sync
 
 BOOTRT_DIR=bootrt
 KERNEL_ELF_NAME=kernel.elf
+KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 
 # TODO: redo this test function for the real thing
 image:
-	@echo $(LOADER_C_SRC)
-	@echo $(LOADER_S_SRC)
 	$(MAKE) test.hdd
+	# Reset
 	sudo rm -rf $(BOOTRT_DIR)/
 	sudo rm -rf loopback_dev
+	# Make mounting directory
 	mkdir -p $(BOOTRT_DIR)/
+	# Mount to loop device and save dev name
 	sudo losetup -Pf --show test.hdd > loopback_dev
+	sudo parted `cat loopback_dev` mklabel gpt
+	sudo parted `cat loopback_dev` mkpart primary 2048s 100%
+	# Update and sync
 	sudo partprobe `cat loopback_dev`
+	# Format the device
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
+	sync
+	# Mount the device to our dir
 	sudo mount `cat loopback_dev`p1 $(BOOTRT_DIR) 
-	# sudo mkdir $(BOOTRT_DIR)/boot
+	# Copy stuff over to the device
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp LIGHT.EFI $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
-	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/kernel.elf
+	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
+	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
 	sync
+	# Cleanup
 	sudo umount $(BOOTRT_DIR)/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf $(BOOTRT_DIR) loopback_dev
 
 test: image
-	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd
+	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -serial stdio
 
 # Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
 # be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 

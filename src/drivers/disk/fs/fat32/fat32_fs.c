@@ -51,6 +51,7 @@ LIGHT_STATUS _load_cluster(FatManager* manager, uint32_t* buffer, uint32_t clust
   uintptr_t usable_clusters_start = (manager->m_fat_bpb.reserved_sector_count * manager->m_fat_bpb.bytes_per_sector); 
   uintptr_t cluster_loc = cluster * sizeof(uint32_t);
 
+  memset(buffer, 0, sizeof(uint32_t));
 
   LIGHT_STATUS ret = read_volume(manager->m_volume, buffer, usable_clusters_start + cluster_loc, sizeof(uint32_t));
 
@@ -88,31 +89,27 @@ uint32_t* _read_clustr_chain(FatManager* manager, uint32_t cluster, size_t* _cha
     return 0;
   }
 
-  size_t chain_size;
-  uint32_t check_cluster = cluster;
+  size_t chain_size = 1;
 
-  for (chain_size = 1; ; chain_size++) {
-    if (manager->fLoadCluster(manager, &check_cluster, check_cluster) == LIGHT_SUCCESS) {
-      if (check_cluster < 0x2 || cluster > FAT32_CLUSTER_LIMIT) {
-        break;
-      }
-      continue;
+  loading_screen_set_status("Reading chain");
+
+  uint32_t test = cluster;
+  for (; ; chain_size++) {
+    manager->fLoadCluster(manager, &test, test);
+
+    if (test < 0x2 || test > FAT32_CLUSTER_LIMIT) {
+      break;
     }
-    break;
   }
 
-  if (chain_size == 0) {
-    return NULL;
-  }
+  loading_screen_set_status(to_string(chain_size));
 
+  test = cluster;
+  uint32_t* clustr_chain = pmm_malloc(sizeof(uint32_t) * chain_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
 
-  uint32_t* clustr_chain = pmm_malloc(chain_size * sizeof(uint32_t), MEMMAP_BOOTLOADER_RECLAIMABLE);
-
-  uint32_t cluster_idx = cluster;
-
-  for (size_t i = 0; i < chain_size; i++) {
-    clustr_chain[i] = cluster_idx;
-    manager->fLoadCluster(manager, &cluster_idx, cluster_idx);
+  for (uint64_t i = 0; i < chain_size; i++) {
+    clustr_chain[i] = test;
+    manager->fLoadCluster(manager, &test, test);
   }
 
   *_chain_size = chain_size;

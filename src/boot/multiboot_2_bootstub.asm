@@ -97,7 +97,6 @@ multiboot2_bootstub:
 
 .tramp:
 
-  hlt
 
   mov esp, ecx
   add esp, .stub_stack_top - multiboot2_bootstub
@@ -143,9 +142,8 @@ multiboot2_bootstub:
     pop ecx
     pop edx
     pop esi
-    pop edi
 
-    push edi
+    ; Leave last frame on the stack for us to return to
 
     ; eax and ebx should contain multiboot information for the kernel
     ; xor eax, eax
@@ -158,8 +156,6 @@ multiboot2_bootstub:
     xor ebp, ebp
 
     ret
-
-    hlt
 
 .stub_stack_bottom:
   times 16 dq 0

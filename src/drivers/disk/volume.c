@@ -1,6 +1,7 @@
 #include "volume.h"
 #include "drivers/disk/partition.h"
 #include "efierr.h"
+#include "frontend/loading_screen.h"
 #include "lib/liblmath.h"
 #include "lib/light_mainlib.h"
 #include "mem/pmm.h"
@@ -33,9 +34,6 @@ LIGHT_STATUS read_volume(light_volume_t* part, void* buffer, uintptr_t location,
     return LIGHT_FAIL;
   }
 
-  cache_t* cache = create_cache_for_volume(part);
-  cache->cached_block = location;
-
   void* pre_buffer = pmm_malloc(block_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
 
   // loop over every block and cache it
@@ -43,7 +41,9 @@ LIGHT_STATUS read_volume(light_volume_t* part, void* buffer, uintptr_t location,
     uintptr_t block_addr = location + i;
     size_t block_num     = block_addr / block_size;
     size_t block_offset  = block_addr % block_size;
-    size_t block_chunk   = min(amount - i, block_size - block_offset);
+    size_t block_chunk   = amount - i;
+    if (block_chunk > block_size - block_offset)
+      block_chunk = block_size - block_chunk;
 
     uint32_t optimal_tlg = part->optimal_transfer_length_granularity;
     while (true) {
@@ -51,7 +51,6 @@ LIGHT_STATUS read_volume(light_volume_t* part, void* buffer, uintptr_t location,
       // try to read the block
       if (volume_read_blocks(part, pre_buffer, (part->first_sector / sector_size_funnie) + block_num * part->optimal_transfer_length_granularity, optimal_tlg) == LIGHT_SUCCESS) {
         // TODO: more stuff
-        cache->cache_blk_count++;
         break;
       }
 
@@ -72,7 +71,6 @@ LIGHT_STATUS read_volume(light_volume_t* part, void* buffer, uintptr_t location,
     memcpy(buffer + i, &pre_buffer[block_offset], block_chunk);
     //g_light_info.sys_table->ConOut->OutputString(g_light_info.sys_table->ConOut, (CHAR16*)L"[INFO] volume block read!\n\r");
 
-    cache->cache_size += block_chunk;
     i += block_chunk;
     // TODO: cache
   }

@@ -21,8 +21,11 @@ extern char multiboot2_bootstub_end[];
 
 uint8_t* multiboot_info;
 uintptr_t multiboot_current_index;
+bool has_ramdisk;
 
 __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuffer_t* fb) {
+
+  has_ramdisk = false;
 
   // open file
   loading_screen_set_status_and_update("Opening ELF file");
@@ -64,10 +67,27 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
     for (;;) {}
   }
 
+  loading_screen_set_status("Trying to find ramdisk...");
+
+  // Try to load the ramdisk, TODO: find a solid name for this
+  handle_t* ramdisk_handle = open_file(g_volume_store.store[1], "rdisk.igz");
+  size_t ramdisk_size = 0;
+  void* ramdisk_data = NULL;
+
+
+  if (ramdisk_handle != NULL) {
+    has_ramdisk = true;
+
+    ramdisk_size = ramdisk_handle->file_size;
+    ramdisk_data = f_readall(ramdisk_handle);
+
+    ramdisk_handle->fCleanHandle(ramdisk_handle);
+  }
+
   loading_screen_set_status_and_update("Loading ELF");
 
   mem_range_t* ranges;
-  size_t range_count = 1;
+  size_t range_count = 1 + (has_ramdisk ? 1 : 0);
   uintptr_t entry_buffer;
   uint32_t elf_type = get_elf_type(kernel->m_buffer);
 
@@ -97,6 +117,9 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
       break;
   }
 
+  /* Compensate for the load_range_into_chain calls */
+  range_count -= 1 + (has_ramdisk ? 1 : 0);
+
   /* Relocate bootstub */
   size_t bootstub_size = (size_t)multiboot2_bootstub_end - (size_t)&multiboot2_bootstub;
   void* new_bootstub_location = pmm_malloc(bootstub_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
@@ -116,6 +139,19 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   if (load_range_into_chain(&ranges, &range_count, &multiboot_range) == LIGHT_FAIL) {
     loading_screen_set_status_and_update("Failed to load multiboot range");
     for (;;) {}
+  }
+
+  mem_range_t ramdisk_range = { 0 };
+
+  if (has_ramdisk) {
+    const uintptr_t ramdisk_new_location = chain_find_highest_addr(&ranges, range_count);
+
+    ramdisk_range = load_range((uintptr_t)ramdisk_data, ramdisk_new_location, ramdisk_size);
+
+    if (load_range_into_chain(&ranges, &range_count, &ramdisk_range) == LIGHT_FAIL) {
+      loading_screen_set_status("Failed to load ramdisk range!");
+      hang();
+    }
   }
 
   memset(multiboot_info, 0x00, prealloced_mb_size);
@@ -165,6 +201,18 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
       }
       break;
     }
+  }
+
+  /* Load the initial ramdisk for the kernel */
+  if (has_ramdisk) {
+    struct multiboot_tag_module* ramdisk_module_tag = (struct multiboot_tag_module*)(multiboot_info + multiboot_current_index);
+
+    ramdisk_module_tag->type = MULTIBOOT_TAG_TYPE_MODULE;
+    ramdisk_module_tag->mod_start = ramdisk_range.m_target;
+    ramdisk_module_tag->mod_end = ramdisk_range.m_target + ramdisk_range.m_range_size;
+    ramdisk_module_tag->size = sizeof(struct multiboot_tag_module) + strlen(ramdisk_module_tag->cmdline) + 1;
+
+    multiboot_current_index += ALIGN_UP(ramdisk_module_tag->size, MULTIBOOT_TAG_ALIGN);
   }
 
   sdt_ptrs_t ptrs = get_sdtp();
