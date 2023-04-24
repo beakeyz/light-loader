@@ -72,7 +72,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   // Try to load the ramdisk, TODO: find a solid name for this
   handle_t* ramdisk_handle = open_file(g_volume_store.store[1], "rdisk.igz");
   size_t ramdisk_size = 0;
-  void* ramdisk_data = NULL;
+  loaded_handle_t* ramdisk_data = NULL;
 
 
   if (ramdisk_handle != NULL) {
@@ -146,7 +146,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   if (has_ramdisk) {
     const uintptr_t ramdisk_new_location = chain_find_highest_addr(&ranges, range_count);
 
-    ramdisk_range = load_range((uintptr_t)ramdisk_data, ramdisk_new_location, ramdisk_size);
+    ramdisk_range = load_range((uintptr_t)ramdisk_data->m_buffer, ramdisk_new_location, ramdisk_size);
 
     if (load_range_into_chain(&ranges, &range_count, &ramdisk_range) == LIGHT_FAIL) {
       loading_screen_set_status("Failed to load ramdisk range!");

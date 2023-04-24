@@ -41,7 +41,7 @@ loaded_handle_t* f_readall(handle_t* handle) {
   loaded_handle->fCleanHandle = _clean_loaded_file_handle;
   loaded_handle->fCleanHandleFull = _clean_loaded_file_handle_full;
 
-  void* ret = pmm_malloc(handle->file_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
+  uint8_t* ret = pmm_malloc(handle->file_size, MEMMAP_BOOTLOADER_RECLAIMABLE);
 
   handle->fRead(handle, ret, 0, handle->file_size);
   handle->fClose(handle);
