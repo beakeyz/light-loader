@@ -6,6 +6,7 @@
 void init_loading_screen(light_framebuffer_t* buffer);
 
 void draw_loading_screen();
+void loading_screen_swap();
 
 void loading_screen_set_status(const char* status_msg);
 

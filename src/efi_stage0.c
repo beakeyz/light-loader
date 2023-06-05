@@ -5,6 +5,7 @@
 #include "drivers/display/framebuffer.h"
 #include <frontend/screen.h>
 #include "drivers/keyboard.h"
+#include "drivers/mouse.h"
 #include "frontend/loading_screen.h"
 #include "lib/linkedlist.h"
 #include "mem/pmm.h"
@@ -36,6 +37,14 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
   //}
 
   init_kb_driver();
+
+  g_light_info.has_mouse = (init_mouse() == LIGHT_SUCCESS);
+
+  if (g_light_info.has_mouse){
+    light_log(L"Mouse");
+  } else {
+    light_log(L"no Mouse");
+  }
 
   // TODO: unified halt, hang, panic
   if (init_memmap() != LIGHT_SUCCESS) {

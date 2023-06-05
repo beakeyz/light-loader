@@ -1,5 +1,6 @@
 #include "loading_screen.h"
 #include "drivers/display/framebuffer.h"
+#include "drivers/mouse.h"
 #include "frontend/font.h"
 #include "frontend/screen.h"
 #include "lib/liblmath.h"
@@ -1769,6 +1770,8 @@ void init_loading_screen(light_framebuffer_t *buffer) {
   loading_screen = init_light_screen(buffer);
   strcpy(current_status_msg, "Loading...");
   current_status_progress = 0;
+
+  set_mouse_limits(buffer->m_fb_width - 1, buffer->m_fb_height - 1);
 }
 
 void draw_loading_screen() {
@@ -1803,6 +1806,11 @@ void draw_loading_screen() {
   loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, load_bar_x_offset * 2, 18, 0xff101010);
   loading_screen->fDrawBox(loading_screen, load_bar_x, centerY + 100, ((load_bar_x_offset * 2) / max_status_progress) * loading_scale, 18, 0xfff0f0f0);
 
+
+  mouse_packet_t packet = get_mouse_state();
+
+  loading_screen->fDrawPixel(loading_screen, packet.m_x, packet.m_y, 0xffffffff);
+
   //screen->fDrawBox(screen, centerX + anim_x, centerY, 15, 15, 0xffffff);
   //loading_screen->fDrawCircle(loading_screen, 0,0, 15, 0xffffff);
 
@@ -1825,6 +1833,11 @@ void loading_screen_set_status(const char *status_msg) {
     // Clear the screen once we've done all the progressions
     return;
   }
+
+  loading_screen_swap();
+}
+
+void loading_screen_swap() {
   loading_screen->fSwapBuffers(loading_screen);
 }
 

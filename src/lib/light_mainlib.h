@@ -50,6 +50,7 @@ typedef struct {
   bool did_ditch_efi_services;
 
   bool has_sse;
+  bool has_mouse;
 
   // can be casted to (mmap_struct_t*)
   struct mmap_struct* mmap_data;

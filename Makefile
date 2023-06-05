@@ -98,7 +98,6 @@ clean:
 # File structure as done here: EFI/BOOT/BOOTX64.EFI
 # This makes sure the firmware is able to find our loader, otherwise it dies =)
 test.hdd:
-	rm -f $@
 	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=128 && sync
 
 BOOTRT_DIR=bootrt
@@ -107,6 +106,7 @@ KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 
 # TODO: redo this test function for the real thing
 image:
+	rm -f test.hdd
 	$(MAKE) test.hdd
 	# Reset
 	sudo rm -rf $(BOOTRT_DIR)/
@@ -136,7 +136,7 @@ image:
 	rm -rf $(BOOTRT_DIR) loopback_dev
 
 test: image
-	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -serial stdio
+	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -serial stdio -d cpu_reset -no-reboot
 
 # Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
 # be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 
