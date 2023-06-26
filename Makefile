@@ -136,7 +136,7 @@ image:
 	rm -rf $(BOOTRT_DIR) loopback_dev
 
 test: image
-	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -serial stdio -d cpu_reset -no-reboot
+	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio -d cpu_reset -no-reboot
 
 # Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
 # be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 
