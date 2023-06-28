@@ -1,4 +1,5 @@
 #include "volume.h"
+#include "drivers/disk/fs/fat32/fat32_fs.h"
 #include "drivers/disk/partition.h"
 #include "efierr.h"
 #include "frontend/loading_screen.h"
@@ -223,6 +224,24 @@ LIGHT_STATUS create_volume_store_from_disk() {
 
       light_volume_t* part = pmm_malloc(sizeof(light_volume_t), MEMMAP_BOOTLOADER_RECLAIMABLE);
       memcpy(part, &_part, sizeof(light_volume_t));
+
+      /*
+       * TODO: loop over the registered fs drivers and try to attach each one 
+       * this way every driver is itself responsible for creating themselves and cleaning up their own mess,
+       * instead of this ugly mess...
+       */
+      FatManager* fat_manager = pmm_malloc(sizeof(FatManager), MEMMAP_BOOTLOADER_RECLAIMABLE);
+
+      /* Try to initialize a FAT manager */
+      if (init_fat_management(fat_manager, part) == LIGHT_SUCCESS) {
+        /* Yay, we have FAT */
+        part->fat_manager = fat_manager;
+        part->fs_type = VOLUME_FSTYPE_FAT32;
+      } else {
+        /* Darn it, we have something else */
+        pmm_free(fat_manager, sizeof(FatManager));
+        part->fs_type = VOLUME_FSTYPE_UNKNOWN;
+      }
 
       g_volume_store.store[g_volume_store.store_size++] = part;
 

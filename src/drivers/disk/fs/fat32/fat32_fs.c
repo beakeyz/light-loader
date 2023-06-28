@@ -265,15 +265,16 @@ void _fat_close (handle_t* file_handle) {
 
 handle_t* open_fat32(light_volume_t* volume, const char* path) {
 
-  // allocate struct on the stack
-  FatManager* manager = pmm_malloc(sizeof(FatManager), MEMMAP_BOOTLOADER_RECLAIMABLE);
+  FatManager* manager;
 
-  // NOTE: doing this for every file open might be a bit overkill, could this be done in a better way?
-  if (init_fat_management(manager, volume) != LIGHT_SUCCESS) {
-    loading_screen_set_status("Failed to initialize fat management");
+  /* We don't have a fat32 volume here =( */
+  if (volume->fs_type != VOLUME_FSTYPE_FAT32)
     return NULL;
-  }
 
+  if (!volume->fat_manager)
+    return NULL;
+
+  manager = volume->fat_manager;
 
   fat_bpb_t fat_bpb = manager->m_fat_bpb;
 

@@ -1,7 +1,13 @@
 #ifndef __LIGHTLOADER_VOLUME__
 #define __LIGHTLOADER_VOLUME__
+
 #include "lib/liblguid.h"
 #include <lib/light_mainlib.h>
+
+struct _FatManager;
+
+#define VOLUME_FSTYPE_UNKNOWN       (0)
+#define VOLUME_FSTYPE_FAT32         (1)
 
 typedef struct light_volume {
   struct light_volume* parent_dev; // Can be null
@@ -27,6 +33,12 @@ typedef struct light_volume {
   guid_t partition_guid;
 
   uint32_t optimal_transfer_length_granularity;
+
+  uint32_t fs_type;
+
+  union {
+    struct _FatManager* fat_manager;
+  };
 
 } __attribute__((packed)) light_volume_t;
 

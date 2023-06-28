@@ -54,6 +54,7 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
 
   light_framebuffer_t* framebuffer = init_optimal_framebuffer();
 
+  /* TODO: announce failure */
   if (!framebuffer)
     hang();
 
@@ -76,23 +77,19 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
     syst->ConOut->OutputString(syst->ConOut, (CHAR16*)L"[WARNING] Failed to create volume store!\n\r");
   }
 
-  //hang();
+  // TODO: login / main menu
 
-  //loading_screen_set_status_and_update("Loaded disk io", framebuffer);
+  //for (;;) {
+    /* Do menu rendering stuff */
 
-  // init the drivers
-  // init_keyboard();   (keyboard, duh)
-  // init_diskdev();    (load info about the disk + prepare the utilities for interfacing. This )
-  // init_displaydev(); (load the displaydriver (gop))
+    /* Handle keyevents and mouseevents */
 
-  // hihi touch our own thing =)
+    /* Do menu reactive stuff */
 
-  // What's next?
-  // - [X] interrupts (apic, acpi (for wich we will need some cpu functions (cpuid, out8, in8, ect.)))
-  // - [X] some disk funnies (find out what the fuck is going on)
-  // - [X] gop (graphics driver, fonts)
-  // - login / main menu
-  // - an actual way to boot an elf file xD
+    /* Check if things r finished */
+
+    /* Repeat */
+  //}
 
   multiboot2_boot("kernel.elf", framebuffer);
 
