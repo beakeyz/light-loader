@@ -52,7 +52,11 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
     hang();
   }
 
-  light_framebuffer_t* framebuffer = init_framebuffer(1024, 768, 32);
+  light_framebuffer_t* framebuffer = init_optimal_framebuffer();
+
+  if (!framebuffer)
+    hang();
+
   init_loading_screen(framebuffer);
 
   loading_screen_set_status_and_update("Setting up...");

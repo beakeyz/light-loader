@@ -54,4 +54,6 @@ typedef struct light_framebuffer {
 
 light_framebuffer_t* init_framebuffer (size_t width, size_t height, uint16_t bpp);
 
+light_framebuffer_t* init_optimal_framebuffer();
+
 #endif // !
