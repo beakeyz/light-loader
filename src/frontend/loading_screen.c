@@ -1777,7 +1777,9 @@ void init_loading_screen(light_framebuffer_t *buffer) {
 void draw_loading_screen() {
 
   if (loading_screen == NULL) {
+    return;
   }
+
   light_framebuffer_t* fb = loading_screen->m_fb;
 
   const size_t centerX = fb->m_fb_width / 2;

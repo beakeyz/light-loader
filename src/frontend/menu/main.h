@@ -1,0 +1,4 @@
+#ifndef __LIGHTLOADER_MAINMENU__
+#define __LIGHTLOADER_MAINMENU__
+
+#endif // !__LIGHTLOADER_MAINMENU__
