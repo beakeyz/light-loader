@@ -1,5 +1,4 @@
 #include "main.h"
-#include "drivers/display/framebuffer.h"
 #include "lib/light_mainlib.h"
 #include <frontend/screen.h>
 
@@ -25,4 +24,11 @@ void render_main_menu()
     return;
 
   /* TODO: */
+}
+
+void main_menu_set_subscreen(light_screen_t* screen)
+{
+  /* TODO: if the screen we replace is not one we can go back to, 
+   we should be able to kill it */
+  current_subscreen = screen;
 }
