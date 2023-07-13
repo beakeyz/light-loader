@@ -8,6 +8,8 @@
 /out/*
 /out/**
 
+*.igz
+*/*.igz
 *.elf
 */*.elf
 *.EFI
