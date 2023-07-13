@@ -6,8 +6,33 @@ LIGHT_STATUS _clean_file_handle (handle_t* handle);
 LIGHT_STATUS _clean_loaded_file_handle (loaded_handle_t* lhandle);
 LIGHT_STATUS _clean_loaded_file_handle_full (loaded_handle_t* lhandle);
 
+handle_t* open_file(const char* path)
+{
+  uint_t i;
+  handle_t* ret;
+  light_volume_t* volume;
 
-handle_t* open_file(light_volume_t* volume, const char* path) { 
+  if (!path)
+    return NULL;
+
+  i = 0;
+  volume = g_volume_store.store[i]; 
+
+  while (volume) {
+
+    ret = open_file_ex(volume, path);
+
+    if (ret)
+      return ret;
+
+    i++;
+    volume = g_volume_store.store[i]; 
+  }
+
+  return NULL;
+}
+
+handle_t* open_file_ex(light_volume_t* volume, const char* path) { 
 
   if (path[0] == '/') {
     memset((void*)&path[0], 0, sizeof(char));

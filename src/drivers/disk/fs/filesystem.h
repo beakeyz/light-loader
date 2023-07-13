@@ -61,7 +61,9 @@ typedef struct loaded_file_handle {
 
 } __attribute__((packed)) loaded_handle_t;
 
-handle_t* open_file(light_volume_t* volume, const char* path);
+handle_t* open_file_ex(light_volume_t* volume, const char* path);
+handle_t* open_file(const char* path);
+
 void f_close(handle_t* handle); // TODO
 void f_read(handle_t* handle, void* buffer, uintptr_t addr, size_t len); // TODO
 

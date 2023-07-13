@@ -201,9 +201,6 @@ LIGHT_STATUS init_fat_management(FatManager *manager, light_volume_t* volume) {
   const char* fat32_ident_fancy = (((void*)&fat_bpb) + 0x03);
 
   if (strncmp(fat32_ident, "FAT", 3) != 0 && strncmp(fat32_ident_fancy, "FAT32", 5) != 0) {
-    g_light_info.sys_table->ConOut->OutputString(g_light_info.sys_table->ConOut, (CHAR16*)L"[ERROR] Wrong partition identifier\n\r");
-    loading_screen_set_status("Wrong partition identifier!");
-    hang();
     // wrong partition format
     return LIGHT_FAIL;
   }

@@ -30,7 +30,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   // open file
   loading_screen_set_status_and_update("Opening ELF file");
 
-  handle_t* kernel_handle = open_file(g_volume_store.store[1], path);
+  handle_t* kernel_handle = open_file(path);
 
   if (kernel_handle == NULL) {
     loading_screen_set_status("Failed to get handle!");
@@ -70,7 +70,7 @@ __attribute__((noreturn)) void multiboot2_boot (const char* path, light_framebuf
   loading_screen_set_status("Trying to find ramdisk...");
 
   // Try to load the ramdisk, TODO: find a solid name for this
-  handle_t* ramdisk_handle = open_file(g_volume_store.store[1], "rdisk.igz");
+  handle_t* ramdisk_handle = open_file("rdisk.igz");
   size_t ramdisk_size = 0;
   loaded_handle_t* ramdisk_data = NULL;
 
