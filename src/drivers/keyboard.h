@@ -10,7 +10,7 @@ typedef struct {
 
 // TODO: custom kb driver from a filehandle?
 void init_kb_driver();
-kb_press_packet_t read_kb_press();
+LIGHT_STATUS read_kb_press(kb_press_packet_t* pck);
 void flush_kb_buffer();
 
 #endif // !__LIGHTLOADER_KBDRIVER__

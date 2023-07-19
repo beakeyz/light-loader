@@ -27,9 +27,16 @@ void flush_kb_buffer() {
 
 }
 
-kb_press_packet_t read_kb_press() {
+LIGHT_STATUS read_kb_press(kb_press_packet_t* pck)
+{
   EFI_KEY_DATA data;
   EFI_STATUS status;
+
+  if (!pck)
+    return LIGHT_FAIL;
+
+  memset(pck, 0, sizeof(kb_press_packet_t));
+
   if (text_prot_ex != NULL) {
     status = text_prot_ex->ReadKeyStrokeEx(text_prot_ex, &data);
   } else {
@@ -38,22 +45,15 @@ kb_press_packet_t read_kb_press() {
 
   switch (status) {
     case EFI_SUCCESS:
-      break;
+      pck->keyData = data;
+      pck->status = status;
+      return LIGHT_SUCCESS;
     case EFI_NOT_READY:
-      break;
     case EFI_DEVICE_ERROR:
-      light_log(L"Dev error!");
-      break;
     case EFI_UNSUPPORTED:
-      light_log(L"Unsupported!");
-      break;
+      return LIGHT_FAIL;
   }
 
-  kb_press_packet_t packet = {
-    .keyData = data,
-    .status = status
-  };
-
-  return packet;
+  return LIGHT_FAIL;
 }
 

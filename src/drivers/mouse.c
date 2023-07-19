@@ -30,7 +30,7 @@ LIGHT_STATUS init_mouse() {
   }
 
   /* Reset the device */
-  //status = mouse_proto->Reset(mouse_proto, false);
+  status = mouse_proto->Reset(mouse_proto, true);
 
   if (status != EFI_SUCCESS) {
     return LIGHT_FAIL;
@@ -49,6 +49,13 @@ LIGHT_STATUS set_mouse_limits(uintptr_t max_x, uintptr_t max_y) {
   __max_x = max_x;
   __max_y = max_y;
 
+  return LIGHT_SUCCESS;
+}
+
+LIGHT_STATUS reset_mouse_pos()
+{
+  __current_x = __max_x / 2;
+  __current_y = __max_y / 2;
   return LIGHT_SUCCESS;
 }
 
@@ -82,7 +89,7 @@ mouse_packet_t get_mouse_state() {
   //}
 
   if (state.LeftButton) {
-    light_log("Hi");
+    light_log(L"Hi");
   }
 
   ret.m_x = __current_x;

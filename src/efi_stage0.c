@@ -7,6 +7,7 @@
 #include "drivers/keyboard.h"
 #include "drivers/mouse.h"
 #include "frontend/loading_screen.h"
+#include "frontend/menu/main.h"
 #include "lib/linkedlist.h"
 #include "mem/pmm.h"
 #include "system/acpi.h"
@@ -79,17 +80,21 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
 
   // TODO: login / main menu
 
-  //for (;;) {
+  struct main_context ctx;
+
+  init_main_menu(framebuffer, &ctx);
+
+  for (;;) {
+    /* Updates */
+    update_main_menu(&ctx);
+    
     /* Do menu rendering stuff */
-
-    /* Handle keyevents and mouseevents */
-
-    /* Do menu reactive stuff */
+    render_main_menu(ctx);
 
     /* Check if things r finished */
 
     /* Repeat */
-  //}
+  }
 
   multiboot2_boot("kernel.elf", framebuffer);
 

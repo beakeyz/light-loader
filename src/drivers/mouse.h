@@ -13,6 +13,7 @@ typedef struct {
 LIGHT_STATUS init_mouse();
 
 LIGHT_STATUS set_mouse_limits(uintptr_t max_x, uintptr_t max_y);
+LIGHT_STATUS reset_mouse_pos();
 
 mouse_packet_t get_mouse_state();
 
