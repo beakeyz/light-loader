@@ -78,6 +78,8 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
     syst->ConOut->OutputString(syst->ConOut, (CHAR16*)L"[WARNING] Failed to create volume store!\n\r");
   }
 
+  goto boot_kernel;
+
   // TODO: login / main menu
 
   struct main_context ctx;
@@ -96,6 +98,7 @@ EFI_STATUS efi_main(EFI_HANDLE img_handle, EFI_SYSTEM_TABLE *syst) {
     /* Repeat */
   }
 
+boot_kernel:
   multiboot2_boot("kernel.elf", framebuffer);
 
   for (;;) {}

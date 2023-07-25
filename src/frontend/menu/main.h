@@ -8,6 +8,9 @@
 struct main_context {
   bool should_load;
   bool mouse_down;
+  uint16_t selector_idx;
+  uint16_t window_idx;
+  uint16_t res0;
   uint32_t mouse_x;
   uint32_t mouse_y;
   kb_press_packet_t kb_packet;
