@@ -10,13 +10,15 @@ define DEFAULT_VAR =
     endif
 endef
 
-$(eval $(call DEFAULT_VAR,CC,./cross_compiler/bin/x86_64-pc-lightos-gcc))
+$(eval $(call DEFAULT_VAR,CC,./tools/cc/bin/x86_64-pc-lightos-gcc))
 $(eval $(call DEFAULT_VAR,LD,ld))
 $(eval $(call DEFAULT_VAR,OBJCOPY,objcopy))
 
+# efi, legacy, mbr, ect.
+FW_TYPE ?= efi
 SSE_ENABLED := true
 
-override INTERNALLDFLAGS :=                \
+override INTERNAL_EFI_LDFLAGS :=                \
 	-Tlight-efi/gnuefi/elf_x86_64_efi.lds  \
     -nostdlib                              \
     -z max-page-size=0x1000                \
@@ -44,18 +46,23 @@ override INTERNALCFLAGS :=  \
     -mno-red-zone           \
     -MMD                    \
     -DGNU_EFI_USE_MS_ABI    \
-    -I./src/                \
-    -Ilight-efi/inc        \
-    -Ilight-efi/inc/x86_64
+    -I./efi/include/        \
+    -I./common/include/     \
 
 OUT := ./out
 BIN_OUT := ./out/bin
 
-SRC_DIR := ./src/
+# TODO: rewrite this entire buildsys =)
 
-LOADER_C_SRC := $(shell find $(SRC_DIR) -type f -name '*.c')
-LOADER_S_SRC := $(shell find $(SRC_DIR) -type f -name '*.S')
-LOADER_ASM_SRC := $(shell find $(SRC_DIR) -type f -name '*.asm')
+LOADER_SRC_DIRS := ./common
+
+ifeq ($(FW_TYPE), efi)
+	LOADER_SRC_DIRS += ./efi
+endif
+
+LOADER_C_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.c')
+LOADER_S_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.S')
+LOADER_ASM_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.asm')
 
 LOADER_C_OBJ := $(patsubst %.c,$(OUT)/%.o,$(LOADER_C_SRC))
 LOADER_S_OBJ := $(patsubst %.S,$(OUT)/%.o,$(LOADER_S_SRC))

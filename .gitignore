@@ -1,8 +1,8 @@
 .git
 
-/cross_compiler/
-/cross_compiler/*
-/cross_compiler/**
+/tools/cc
+/tools/cc/*
+/tools/cc/**
 
 /out/
 /out/*
