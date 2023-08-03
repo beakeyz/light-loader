@@ -20,6 +20,8 @@ Revision History
 
 --*/
 
+#include "x86_64/efibind.h"
+
 typedef UINT16          CHAR16;
 typedef UINT8           CHAR8;
 typedef UINT8           BOOLEAN;
@@ -56,7 +58,6 @@ typedef VOID            *EFI_EVENT;
     #define OUT
     #define OPTIONAL
 #endif
-
 
 //
 // A GUID

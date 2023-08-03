@@ -1,6 +1,8 @@
 #ifndef _DEVPATH_H
 #define _DEVPATH_H
 
+#include <efidef.h>
+
 /*++
 
 Copyright (c) 1998  Intel Corporation

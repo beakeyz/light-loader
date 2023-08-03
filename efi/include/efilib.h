@@ -21,8 +21,10 @@ Revision History
 
 #include "efidebug.h"
 #include "efipart.h"
+#include "efiui.h"
 #if defined(_M_X64) || defined(__x86_64__) || defined(__amd64__)
 #include "x86_64/efilibplat.h"
+#include <x86_64/efibind.h>
 #elif defined(_M_IX86) || defined(__i386__)
 #include "ia32/efilibplat.h"
 #elif defined(_M_IA64) || defined(__ia64__)
@@ -41,17 +43,19 @@ Revision History
 #include "efistdarg.h"
 #include "pci22.h"
 #include "libsmbios.h"
+#include <efiapi.h>
+#include <efidef.h>
+#include <efidevp.h>
+#include <eficon.h>
 
 //
 // Public read-only data in the EFI library
 //
 
 extern EFI_SYSTEM_TABLE         *ST;
-#define gST                      ST
 extern EFI_BOOT_SERVICES        *BS;
-#define gBS                      BS
 extern EFI_RUNTIME_SERVICES     *RT;
-#define gRT                      RT
+extern EFI_HANDLE               IH;
 
 extern EFI_GUID gEfiDevicePathProtocolGuid;
 #define DevicePathProtocol gEfiDevicePathProtocolGuid

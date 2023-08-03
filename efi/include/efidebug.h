@@ -1,6 +1,10 @@
 #ifndef _EFI_DEBUG_H
 #define _EFI_DEBUG_H
 
+#include <x86_64/efibind.h>
+#include <efidef.h>
+#include <efiapi.h>
+
 /*++
 
 Copyright (c) 1998  Intel Corporation
@@ -19,7 +23,7 @@ Revision History
 
 --*/
 
-extern UINTN     EFIDebug;
+//extern UINTN     EFIDebug;
 
 #if EFI_DEBUG
 
