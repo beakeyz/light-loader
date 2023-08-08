@@ -20,3 +20,5 @@
 */*.d
 *.hdd
 */*.hdd
+
+loopback_dev

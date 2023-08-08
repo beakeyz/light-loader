@@ -10,26 +10,27 @@ define DEFAULT_VAR =
     endif
 endef
 
-$(eval $(call DEFAULT_VAR,CC,./tools/cc/bin/x86_64-pc-lightos-gcc))
+$(eval $(call DEFAULT_VAR,CC,x86_64-pc-lightos-gcc))
 $(eval $(call DEFAULT_VAR,LD,ld))
 $(eval $(call DEFAULT_VAR,OBJCOPY,objcopy))
 
-# efi, legacy, mbr, ect.
+# efi, bios, ect.
 FW_TYPE ?= efi
 SSE_ENABLED := true
 
-override INTERNAL_EFI_LDFLAGS :=                \
-	-Tlight-efi/gnuefi/elf_x86_64_efi.lds  \
-    -nostdlib                              \
-    -z max-page-size=0x1000                \
-    -m elf_x86_64                          \
-    -static                                \
-    -pie                                   \
-    --no-dynamic-linker                    \
-    -z text																 \
+EMU := qemu-system-x86_64
 
+override INTERNAL_LDFLAGS :=	\
+	-Tefi/lib/elf_x86_64_efi.lds	\
+    -nostdlib                   	\
+    -z max-page-size=0x1000     	\
+    -m elf_x86_64               	\
+    -static                     	\
+    -pie                        	\
+    --no-dynamic-linker         	\
+    -z text							\
 
-override INTERNALCFLAGS :=  \
+override INTERNAL_CFLAGS :=  \
     -std=gnu11              \
 	-nostdlib 				\
     -ffreestanding          \
@@ -46,84 +47,70 @@ override INTERNALCFLAGS :=  \
     -mno-red-zone           \
     -MMD                    \
     -DGNU_EFI_USE_MS_ABI    \
-    -I./efi/include/        \
     -I./common/include/     \
+    -I./efi/include/        \
+	-I./efi/include/x86_64  \
 
 OUT := ./out
 BIN_OUT := ./out/bin
 
-# TODO: rewrite this entire buildsys =)
-
-LOADER_SRC_DIRS := ./common
-
-ifeq ($(FW_TYPE), efi)
-	LOADER_SRC_DIRS += ./efi
-endif
-
-LOADER_C_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.c')
-LOADER_S_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.S')
-LOADER_ASM_SRC := $(shell find $(LOADER_SRC_DIRS) -type f -name '*.asm')
-
-LOADER_C_OBJ := $(patsubst %.c,$(OUT)/%.o,$(LOADER_C_SRC))
-LOADER_S_OBJ := $(patsubst %.S,$(OUT)/%.o,$(LOADER_S_SRC))
-LOADER_ASM_OBJ := $(patsubst %.asm,$(OUT)/%.o,$(LOADER_ASM_SRC))
-
-LOADER_EFI_OBJS := light-efi/gnuefi/crt0-efi-x86_64.o light-efi/gnuefi/reloc_x86_64.o
-override HEADER_DEPS := $(patsubst %.c,$(OUT)/%.d,$(LOADER_C_SRC))
-
-$(LOADER_EFI_OBJS):
-	$(MAKE) -C light-efi/gnuefi ARCH=x86_64
-
-# TODO: add crosscompiler and compile assembly
--include $(HEADER_DEPS)
-$(OUT)/%.o: %.c
-	@$(DIRECTORY_GUARD)
-	$(CC) $(CFLAGS) $(INTERNALCFLAGS) -c $< -o $@
-
-$(OUT)/%.o: %.S
-	@$(DIRECTORY_GUARD)
-	$(CC) $(CFLAGS) $(INTERNALCFLAGS) -c $< -o $@
-
-$(OUT)/%.o: %.asm
-	@$(DIRECTORY_GUARD)
-	nasm $< -o $@ -f elf64
-
-.PHONY: build
-build: $(LOADER_EFI_OBJS) $(LOADER_C_OBJ) $(LOADER_S_OBJ) $(LOADER_ASM_OBJ)
-	$(LD) $^ $(LDFLAGS) $(INTERNALLDFLAGS) -o ./light-loader.elf
-	$(OBJCOPY) -O binary ./light-loader.elf ./LIGHT.EFI
-
-.PHONY: clean 
-clean:
-	@echo "[LOADER] cleaning elf..."
-	@rm -rf ./light-loader.elf
-	@echo "[LOADER] cleaning objs..."
-	@rm -rf $(LOADER_EFI_OBJS) $(LOADER_S_OBJ) $(LOADER_C_OBJ) $(HEADER_DEPS) 
-	@echo "[LOADER] done cleaning!"
-
-# For using the EFI loader on real hardware, make sure to use the same 
-# File structure as done here: EFI/BOOT/BOOTX64.EFI
-# This makes sure the firmware is able to find our loader, otherwise it dies =)
-test.hdd:
-	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=128 && sync
+OUT_ELF := light-loader.elf
+OUT_EFI := LIGHT-LOADER.EFI
+OUT_IMAGE := lloader.img
 
 BOOTRT_DIR=bootrt
+
+# We copy these files into the root of the project for now
 KERNEL_ELF_NAME=kernel.elf
 KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 
-# TODO: redo this test function for the real thing
-image:
-	rm -f test.hdd
-	$(MAKE) test.hdd
-	# Reset
+SOURCE_DIRECTORIES := common efi
+INCLUDE_DIRECTORIES := common/include efi/include
+
+help: ## Prints help for targets with comments
+	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+C_OBJ := $(patsubst %.c,$(OUT)/%.o,$(shell find $(SOURCE_DIRECTORIES) -type f -name '*.c'))
+S_OBJ := $(patsubst %.S,$(OUT)/%.o,$(shell find $(SOURCE_DIRECTORIES) -type f -name '*.S'))
+ASM_OBJ := $(patsubst %.asm,$(OUT)/%.o,$(shell find $(SOURCE_DIRECTORIES) -type f -name '*.asm'))
+
+override HEADER_DEPS := $(patsubst %.o,%.d,$(C_OBJ))
+
+-include $(HEADER_DEPS)
+$(OUT)/%.o: %.c
+	@echo -e Building: $@
+	@$(DIRECTORY_GUARD)
+	@$(CC) $(CFLAGS) $(INTERNAL_CFLAGS) -c $< -o $@
+
+$(OUT)/%.o: %.S
+	@echo -e Building: $@
+	@$(DIRECTORY_GUARD)
+	@$(CC) $(CFLAGS) $(INTERNAL_CFLAGS) -c $< -o $@
+
+.PHONY: build 
+build: $(C_OBJ) $(S_OBJ) ## Build the objects
+	@echo -e Linking...
+	@mkdir -p $(BIN_OUT)
+	@$(LD) $^ $(INTERNAL_LDFLAGS) -o $(BIN_OUT)/$(OUT_ELF)
+	@$(OBJCOPY) -O binary $(BIN_OUT)/$(OUT_ELF) $(BIN_OUT)/$(OUT_EFI) 
+	@echo -e Done =D 
+
+$(BIN_OUT)/$(OUT_IMAGE):
+	rm -f $@
+	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=128 && sync
+
+.PHONY: image
+image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo rm -rf $(BOOTRT_DIR)/
 	sudo rm -rf loopback_dev
 	# Make mounting directory
 	mkdir -p $(BOOTRT_DIR)/
 	# Mount to loop device and save dev name
-	sudo losetup -Pf --show test.hdd > loopback_dev
+	sudo losetup -Pf --show $< > loopback_dev
 	sudo parted `cat loopback_dev` mklabel gpt
-	sudo parted `cat loopback_dev` mkpart primary 2048s 100%
+	sudo parted `cat loopback_dev` mkpart one 2048s 100%
+	sudo parted `cat loopback_dev` set 1 boot on
+	sudo parted `cat loopback_dev` set 1 hidden off
 	# Update and sync
 	sudo partprobe `cat loopback_dev`
 	# Format the device
@@ -133,7 +120,7 @@ image:
 	sudo mount `cat loopback_dev`p1 $(BOOTRT_DIR) 
 	# Copy stuff over to the device
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
-	sudo cp LIGHT.EFI $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
 	sync
@@ -142,12 +129,6 @@ image:
 	sudo losetup -d `cat loopback_dev`
 	rm -rf $(BOOTRT_DIR) loopback_dev
 
-test: image
-	qemu-system-x86_64 -m 128M -net none -M q35 -usb test.hdd -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio -d cpu_reset -no-reboot
-
-# Creates a disk image that can be loaded onto a fat-formatted USB-drive and then
-# be loaded from that. It takes the directory ./bootrt as it's sysroot, so any 
-# config- or binary files will first be copied there before creating the image.
-.PHONY: install
-install:
-	echo TODO
+.PHONY: debug
+debug: ## Run lightloader in Qemu
+	@$(EMU) -m 1G -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio

@@ -77,6 +77,17 @@ _patch () {
     cd ..
 }
 
+_install_suite () {
+  log "Installing..."
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-gcc ~/.local/bin
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-ld ~/.local/bin 
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-nm ~/.local/bin
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-objdump ~/.local/bin 
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-as ~/.local/bin 
+  sudo cp $CC_PATH/libexec/gcc/x86_64-pc-lightos/$gcc_version/cc1 ~/.local/bin
+  log "Installed the suite to ~/.local/bin !"
+}
+
 ### start of the script ###
 
 log "Welcome to the light-loader cc build =D"
@@ -158,6 +169,17 @@ make all-gcc -j$(nproc)
 make all-target-libgcc -j$(nproc)
 make install-gcc -j$(nproc)
 make install-target-libgcc -j$(nproc)
+
+log "Warning: some of the buildsystem requires you to install the compiler, so installing is strongly encouraged!"
+read -p "[?] Do you want to install this compiler on your system? [YES/no]: " do_patch
+
+if [[ "$do_patch" == "yes" ]]; then 
+  _install_suite
+else
+  if [[ -z $do_patch ]]; then
+    _install_suite
+  fi
+fi
 
 log "Done =D"
 cd ..

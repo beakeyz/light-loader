@@ -19,6 +19,9 @@ Revision History
 //
 // Define SMBIOS tables.
 //
+#include "efidef.h"
+#include "x86_64/efibind.h"
+
 #pragma pack(1)
 typedef struct {
     UINT8   AnchorString[4];
