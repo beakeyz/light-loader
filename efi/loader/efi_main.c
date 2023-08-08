@@ -47,9 +47,9 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   stat = BS->AllocatePages(AllocateAnyPages, EfiLoaderData, EFI_SIZE_TO_PAGES(INITIAL_HEAPSIZE), &heap_addr);
 
   if (stat != EFI_SUCCESS) {
-		ST->ConOut->OutputString(ST->ConOut, (CHAR16 *)L"Failed to allocate memory for heap.\r\n");
-		BS->Exit(IH, stat, 0, NULL);
-	}
+    ST->ConOut->OutputString(ST->ConOut, (CHAR16 *)L"Failed to allocate memory for heap.\r\n");
+    efi_exit(stat);
+  }
 
   /* We'll initialize 64 Mib of heap =D */
   init_heap(heap_addr, INITIAL_HEAPSIZE);
@@ -57,35 +57,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   ST->ConOut->EnableCursor(ST->ConOut, false);
   ST->ConOut->ClearScreen(ST->ConOut);
 
-  ST->ConOut->OutputString(ST->ConOut, (CHAR16*)L"Allocating 8 bytes\n\r");
-
-  void* alloc = heap_allocate(8);
-  void* lucy2 = heap_allocate(8);
-  void* lucky = heap_allocate(8);
-  heap_allocate(8);
-  heap_allocate(8);
-
-  ST->ConOut->OutputString(ST->ConOut, (CHAR16*)L"Correct?\n\r");
-
-  debug_heap();
-
-  heap_free(alloc);
-
-  ST->ConOut->OutputString(ST->ConOut, (CHAR16*)L"Correct?\n\r");
-
-  debug_heap();
-
-  heap_free(lucky);
-
-  ST->ConOut->OutputString(ST->ConOut, (CHAR16*)L"Correct?\n\r");
-
-  debug_heap();
-
-  heap_free(lucy2);
-
-  ST->ConOut->OutputString(ST->ConOut, (CHAR16*)L"Correct?\n\r");
-
-  debug_heap();
+  /* Disable the watchdog timer. Ignore any errors */
+  BS->SetWatchdogTimer(0, 0, 0, NULL);
 
   for (;;) {}
   
