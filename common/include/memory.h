@@ -4,5 +4,6 @@
 #include <stddef.h>
 
 void memset(void*, int, size_t);
+void* memcpy(uint8_t* dst, const uint8_t* src, size_t size);
 
 #endif // !__LIGHLOADER_MEMORY__

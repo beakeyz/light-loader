@@ -20,5 +20,9 @@
 */*.d
 *.hdd
 */*.hdd
+*.img
+*/*.img
+*.iso
+*/*.iso
 
 loopback_dev

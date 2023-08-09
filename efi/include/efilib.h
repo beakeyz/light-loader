@@ -57,12 +57,17 @@ extern EFI_BOOT_SERVICES        *BS;
 extern EFI_RUNTIME_SERVICES     *RT;
 extern EFI_HANDLE               IH;
 
+/* Start of our custom efilib routines */
+
 /*
  * Try to locate EFI handles, but automatically allocate the correct amount of memory for the buffer
  * 
  * @returns: 0 on failure, the amount of handles on success
  */
 size_t locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* size, EFI_HANDLE** handle_list);
+
+void* efi_allocate(size_t size);
+void efi_deallocate(void* addr, size_t size);
 
 extern EFI_GUID gEfiDevicePathProtocolGuid;
 #define DevicePathProtocol gEfiDevicePathProtocolGuid

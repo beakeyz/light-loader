@@ -153,6 +153,11 @@ heap_free(void* addr)
   uint64_t concurrent_idx;
   heap_node_t* prev;
   heap_node_t* ittr;
+
+  /* Out of bounds =/ */
+  if (addr < (void*)heap_start || addr >= (void*)heap_limit)
+    return;
+
   heap_node_t* node = node_from_address((uint64_t)addr);
 
   if (!node)

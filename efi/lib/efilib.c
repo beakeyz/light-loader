@@ -2,6 +2,7 @@
 #include "efidef.h"
 #include "efierr.h"
 #include "heap.h"
+#include "stddef.h"
 #include <efilib.h>
 
 EFI_SYSTEM_TABLE         *ST;
@@ -35,4 +36,26 @@ locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* si
     return 0;
 
   return (*size / sizeof(EFI_HANDLE));
+}
+
+void*
+efi_allocate(size_t size) 
+{
+  EFI_STATUS status;
+  EFI_PHYSICAL_ADDRESS ret;
+  size_t pages = EFI_SIZE_TO_PAGES(size);
+
+  status = BS->AllocatePages(AllocateAnyPages, EfiLoaderData, pages, &ret);
+
+  if (status != EFI_SUCCESS)
+    return nullptr;
+
+  return (void*)ret;
+}
+
+void
+efi_deallocate(void* addr, size_t size)
+{
+  size = EFI_SIZE_TO_PAGES(size);
+  BS->FreePages((EFI_PHYSICAL_ADDRESS)addr, size);
 }

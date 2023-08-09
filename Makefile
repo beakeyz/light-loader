@@ -57,6 +57,7 @@ BIN_OUT := ./out/bin
 OUT_ELF := light-loader.elf
 OUT_EFI := LIGHT-LOADER.EFI
 OUT_IMAGE := lloader.img
+OUT_ISO := lloader.iso
 
 BOOTRT_DIR=bootrt
 
@@ -97,7 +98,7 @@ build: $(C_OBJ) $(S_OBJ) ## Build the objects
 
 $(BIN_OUT)/$(OUT_IMAGE):
 	rm -f $@
-	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=128 && sync
+	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=64 && sync
 
 .PHONY: image
 image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
@@ -108,9 +109,10 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	# Mount to loop device and save dev name
 	sudo losetup -Pf --show $< > loopback_dev
 	sudo parted `cat loopback_dev` mklabel gpt
-	sudo parted `cat loopback_dev` mkpart one 2048s 100%
+	sudo parted `cat loopback_dev` mkpart primary 2048s 100%
 	sudo parted `cat loopback_dev` set 1 boot on
-	sudo parted `cat loopback_dev` set 1 hidden off
+	sudo parted `cat loopback_dev` set 1 hidden on
+	sudo parted `cat loopback_dev` set 1 esp on
 	# Update and sync
 	sudo partprobe `cat loopback_dev`
 	# Format the device
@@ -128,6 +130,33 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo umount $(BOOTRT_DIR)/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf $(BOOTRT_DIR) loopback_dev
+
+INSTALL_DEV ?= none
+
+.PHONY: install
+install:
+ifeq ($(INSTALL_DEV),none)
+	@echo Please specify INSTALL_DEV=?
+else
+	@stat $(INSTALL_DEV)
+	sudo parted $(INSTALL_DEV) mklabel gpt
+	sudo parted $(INSTALL_DEV) mkpart primary 2048s 100%
+	sudo partprobe $(INSTALL_DEV)
+	sudo mkfs.fat -F 32 $(INSTALL_DEV)1
+	mkdir -p $(BOOTRT_DIR)
+
+	sudo mount $(INSTALL_DEV)1 $(BOOTRT_DIR)
+
+	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
+	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
+	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
+	sync
+
+	sudo umount $(BOOTRT_DIR)
+	rm -rf $(BOOTRT_DIR)
+
+endif
 
 .PHONY: debug
 debug: ## Run lightloader in Qemu

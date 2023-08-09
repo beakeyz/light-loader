@@ -1,5 +1,8 @@
+#include "ctx.h"
 #include "efidef.h"
 #include "efidevp.h"
+#include "framebuffer.h"
+#include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
 #include <efi.h>
@@ -12,6 +15,23 @@ void
 efi_exit(EFI_STATUS exit)
 {
   BS->Exit(IH, exit, 0, 0);
+}
+
+static int
+efi_exit_bs()
+{
+  /* TODO */
+  /* Create and cache final memmap */
+  /* Exit BootServices */
+  return 0;
+}
+
+static void
+efi_setup_ctx(light_ctx_t* ctx)
+{
+  ctx->f_exit = efi_exit_bs;
+  ctx->f_allocate = efi_allocate;
+  ctx->f_deallcoate = efi_deallocate;
 }
 
 /*
@@ -38,10 +58,19 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
 {
   EFI_STATUS stat;
   uint64_t heap_addr;
+
+  /* Initialize global UEFI variables */
   IH = image_handle;
   ST = system_table;
   BS = ST->BootServices;
   RT = ST->RuntimeServices;
+
+  /* Quickly setup the main terminal for clean output */
+  ST->ConOut->EnableCursor(ST->ConOut, false);
+  ST->ConOut->ClearScreen(ST->ConOut);
+
+  /* Disable the watchdog timer. Ignore any errors */
+  BS->SetWatchdogTimer(0, 0, 0, NULL);
 
   /* We're up, lets allocate a heap to begin with */
   stat = BS->AllocatePages(AllocateAnyPages, EfiLoaderData, EFI_SIZE_TO_PAGES(INITIAL_HEAPSIZE), &heap_addr);
@@ -54,11 +83,39 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   /* We'll initialize 64 Mib of heap =D */
   init_heap(heap_addr, INITIAL_HEAPSIZE);
 
-  ST->ConOut->EnableCursor(ST->ConOut, false);
-  ST->ConOut->ClearScreen(ST->ConOut);
+  /*
+   * Setup the simple gfx framework for generic rendering
+   */
+  init_light_gfx();
 
-  /* Disable the watchdog timer. Ignore any errors */
-  BS->SetWatchdogTimer(0, 0, 0, NULL);
+  /*
+   * Initialize the generic bootloader context, so the 'common' part of the bootloader can
+   * have a little more power
+   */
+  init_light_ctx(efi_setup_ctx);
+
+  /* Initialize the framebuffer for quick debug capabilities */
+  init_framebuffer();
+
+  light_gfx_t* gfx;
+  get_light_gfx(&gfx);
+
+  for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t j = 0; j < 5; j++) {
+      gfx_draw_pixel(gfx, i, j, WHITE);
+    }
+  }
+
+  gfx_draw_pixel(gfx, 2, 2, BLACK);
+  gfx_draw_pixel(gfx, 2, 4, GRAY);
+
+  for (uint32_t i = 0; i < gfx->height; i++) {
+    for (uint32_t j = 0; j < gfx->width; j++) {
+      gfx_draw_pixel(gfx, 5 + j, 5 + i, GRAY);
+    }
+  }
+
+  put_light_gfx();
 
   for (;;) {}
   
