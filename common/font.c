@@ -6,6 +6,8 @@
 light_font_t default_light_font = {
   .width = 8,
   .height = 16,
+  .bytes_per_glyph = 16,
+  .glyph_count = 0xFF,
   .data = {
 // Credit goes to https://github.com/apple/darwin-xnu/blob/main/osfmk/console/iso_font.c
 /*   0 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

@@ -59,7 +59,8 @@ typedef struct light_gfx {
 void gfx_load_font(struct light_font* font);
 
 void gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr);
-void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, light_color_t y);
+void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t clr);
+void gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr);
 
 void get_light_gfx(light_gfx_t** gfx);
 void put_light_gfx();

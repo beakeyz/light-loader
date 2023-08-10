@@ -115,6 +115,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
     }
   }
 
+  gfx_draw_str(gfx, "Hello, World!", 6, 6, WHITE);
+
   put_light_gfx();
 
   for (;;) {}

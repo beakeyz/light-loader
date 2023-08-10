@@ -56,7 +56,46 @@ gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
   *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = transform_light_clr(gfx, clr);
 }
 
-void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, light_color_t y);
+void
+gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t clr)
+{
+  int error;
+  light_glyph_t glyph;
+
+  if (!gfx->current_font)
+    return;
+
+  error = lf_get_glyph_for_char(gfx->current_font, c, &glyph);
+
+  if (error)
+    return;
+
+  for (uint8_t _y = 0; _y < gfx->current_font->height; _y++) {
+    char glyph_part = glyph.data[_y];
+    for (uint8_t _x = 0; _x < gfx->current_font->width; _x++) {
+      if (glyph_part & (1 << _x)) {
+        gfx_draw_pixel(gfx, x + _x, y + _y, clr);
+      }
+    }
+  }
+}
+
+void
+gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr)
+{
+  uint32_t x_idx = 0;
+  char* c = str;
+
+  /*
+   * Loop over every char, draw them after one another over the x-axis, no looping 
+   * when the screen-edge is hit
+   */
+  while (*c) {
+    gfx_draw_char(gfx, *c, x + x_idx, y, clr);
+    x_idx += gfx->current_font->width;
+    c++;
+  }
+}
 
 void 
 get_light_gfx(light_gfx_t** gfx)
