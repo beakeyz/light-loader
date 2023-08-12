@@ -26,7 +26,7 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
     goto out;
 
   /* Block already in our cache */
-  if (dev->cache.cache_dirty_flags & (1 << cache_idx))
+  if ((dev->cache.cache_dirty_flags & (1 << cache_idx)) && dev->cache.cache_block[cache_idx] == block)
     goto success;
 
   start_block = dev->start_offset / (dev->sector_size / 512);
