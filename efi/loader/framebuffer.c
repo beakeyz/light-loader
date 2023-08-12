@@ -40,7 +40,7 @@ init_framebuffer()
     if (status != EFI_SUCCESS)
       continue;
 
-    status = BS->OpenProtocol(handle_list[i], &conout_guid, &dummy_handle, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+    status = open_protocol(handle_list[i], &conout_guid, &dummy_handle);
 
     if (status == EFI_SUCCESS) {
       gop_handle = handle_list[i];

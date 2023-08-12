@@ -1,15 +1,23 @@
 #include "ctx.h"
+#include "disk.h"
 #include "efidef.h"
 #include "efidevp.h"
+#include "efiprot.h"
 #include "framebuffer.h"
 #include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
+#include "sys/ctx.h"
+#include "sys/efi_disk.h"
 #include <efi.h>
 #include <efierr.h>
 #include <efilib.h>
+#include <memory.h>
 
 #define INITIAL_HEAPSIZE 64 * Mib 
+
+static efi_ctx_t __efi_ctx = { 0 };
+efi_ctx_t* efi_ctx;
 
 void
 efi_exit(EFI_STATUS exit)
@@ -29,9 +37,33 @@ efi_exit_bs()
 static void
 efi_setup_ctx(light_ctx_t* ctx)
 {
+  static EFI_GUID img_guid = LOADED_IMAGE_PROTOCOL;
+  static EFI_GUID io_guid = DISK_IO_PROTOCOL;
+  static EFI_GUID block_guid = BLOCK_IO_PROTOCOL;
+  //static EFI_GUID file_guid = ;
+  EFI_STATUS status;
+
+  memset(ctx, 0, sizeof(*ctx));
+
   ctx->f_exit = efi_exit_bs;
   ctx->f_allocate = efi_allocate;
   ctx->f_deallcoate = efi_deallocate;
+
+  /* For any EFI loader, use the generic gfx printf routine, to get formated pixels on the screen */
+  ctx->f_printf = gfx_printf;
+
+  efi_ctx = &__efi_ctx;
+
+  /*
+   * TODO: good halting mechanism
+   */
+
+  status = open_protocol(IH, &img_guid, (void**)&efi_ctx->lightloader_image);
+
+  status = BS->HandleProtocol(efi_ctx->lightloader_image->DeviceHandle, &io_guid, (void**)&efi_ctx->bootdisk_io);
+  status = BS->HandleProtocol(efi_ctx->lightloader_image->DeviceHandle, &block_guid, (void**)&efi_ctx->bootdisk_block_io);
+
+  ctx->private = efi_ctx;
 }
 
 /*
@@ -44,14 +76,14 @@ efi_setup_ctx(light_ctx_t* ctx)
  *  - Beauty: also non-existent...
  *
  * What are the steps from here?
- * 1) First: initialize a system heap
- * 2) Initialize a framebuffer so we can have pixels
- * 3) Initialize the frontend so we can have pretty pixels
- * 4) Check for a keyboard and mouse
- * 5) Check and cache any system objects like ACPI pointers or SMBIOS stuff
- * 6) Initialize file access n stuff
- * 7) Let the user do stuff
- * 8) Boot the kernel =D
+ * 1) [X] First: initialize a system heap
+ * 2) [X] Initialize a framebuffer so we can have pixels
+ * 3) [ ] Initialize the frontend so we can have pretty pixels
+ * 4) [ ] Check for a keyboard and mouse
+ * 5) [ ] Check and cache any system objects like ACPI pointers or SMBIOS stuff
+ * 6) [ ] Initialize file access n stuff
+ * 7) [ ] Let the user do stuff
+ * 8) [ ] Boot the kernel =D
  */
 EFI_STATUS
 efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
@@ -97,27 +129,16 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   /* Initialize the framebuffer for quick debug capabilities */
   init_framebuffer();
 
-  light_gfx_t* gfx;
-  get_light_gfx(&gfx);
+  printf("Yay");
+  printf("I love soup");
+  printf("Very much");
 
-  for (uint32_t i = 0; i < 5; i++) {
-    for (uint32_t j = 0; j < 5; j++) {
-      gfx_draw_pixel(gfx, i, j, WHITE);
-    }
-  }
+  init_efi_bootdisk();
 
-  gfx_draw_pixel(gfx, 2, 2, BLACK);
-  gfx_draw_pixel(gfx, 2, 4, GRAY);
-
-  for (uint32_t i = 0; i < gfx->height; i++) {
-    for (uint32_t j = 0; j < gfx->width; j++) {
-      gfx_draw_pixel(gfx, 5 + j, 5 + i, GRAY);
-    }
-  }
-
-  gfx_draw_str(gfx, "Hello, World!", 6, 6, WHITE);
-
-  put_light_gfx();
+  if (get_efi_context()->bootdisk_block_io)
+    printf("Got block io");
+  else 
+    printf("Failed to get block io");
 
   for (;;) {}
   

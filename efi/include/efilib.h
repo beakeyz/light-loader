@@ -66,6 +66,8 @@ extern EFI_HANDLE               IH;
  */
 size_t locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* size, EFI_HANDLE** handle_list);
 
+int open_protocol(EFI_HANDLE handle, EFI_GUID* guid, void** out);
+
 void* efi_allocate(size_t size);
 void efi_deallocate(void* addr, size_t size);
 

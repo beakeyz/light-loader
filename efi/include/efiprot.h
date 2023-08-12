@@ -22,6 +22,9 @@ Revision History
 //
 //  FPSWA library protocol
 //
+#include "efidef.h"
+#include "efidevp.h"
+#include "x86_64/efibind.h"
 #define EFI_FPSWA_PROTOCOL_GUID \
     { 0xc41b6531, 0x97b9, 0x11d3, {0x9a, 0x29, 0x0, 0x90, 0x27, 0x3f, 0xc1, 0x4d} }
 #define FPSWA_PROTOCOL EFI_FPSWA_PROTOCOL_GUID

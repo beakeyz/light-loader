@@ -62,6 +62,9 @@ void gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
 void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t clr);
 void gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr);
 
+int gfx_printf(char* str, ...);
+int gfx_putchar(char c);
+
 void get_light_gfx(light_gfx_t** gfx);
 void put_light_gfx();
 

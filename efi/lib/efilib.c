@@ -59,3 +59,9 @@ efi_deallocate(void* addr, size_t size)
   size = EFI_SIZE_TO_PAGES(size);
   BS->FreePages((EFI_PHYSICAL_ADDRESS)addr, size);
 }
+
+int
+open_protocol(EFI_HANDLE handle, EFI_GUID* guid, void** out)
+{
+  return (BS->OpenProtocol(handle, guid, out, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL));
+}

@@ -134,18 +134,22 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 INSTALL_DEV ?= none
 
 .PHONY: install
-install:
+install: ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device>)
 ifeq ($(INSTALL_DEV),none)
 	@echo Please specify INSTALL_DEV=?
 else
 	@stat $(INSTALL_DEV)
 	sudo parted $(INSTALL_DEV) mklabel gpt
-	sudo parted $(INSTALL_DEV) mkpart primary 2048s 100%
+	sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
+	sudo parted $(INSTALL_DEV) mkpart Primary 10M 100%
+	sudo parted $(INSTALL_DEV) set 2 boot on
+	sudo parted $(INSTALL_DEV) set 2 hidden on
+	sudo parted $(INSTALL_DEV) set 2 esp on
 	sudo partprobe $(INSTALL_DEV)
-	sudo mkfs.fat -F 32 $(INSTALL_DEV)1
+	sudo mkfs.fat -F 32 $(INSTALL_DEV)2
 	mkdir -p $(BOOTRT_DIR)
 
-	sudo mount $(INSTALL_DEV)1 $(BOOTRT_DIR)
+	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
 
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI

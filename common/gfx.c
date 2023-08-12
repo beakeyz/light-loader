@@ -97,6 +97,37 @@ gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t 
   }
 }
 
+/*
+ * NOTE: temporary
+ */
+static uint32_t printf_x = 4;
+static uint32_t printf_y = 4;
+
+int
+gfx_putchar(char c)
+{
+  gfx_draw_char(&light_gfx, c, printf_x, printf_y, WHITE);
+
+  printf_x += light_gfx.current_font->width;
+  return 0;
+}
+
+int
+gfx_printf(char* str, ...)
+{
+  /*
+   * TODO: get a bootloader tty context 
+   * from this we get:
+   *  - the current starting x and y coords where we can print the next string of info
+   *  - the forground color and background color
+   */
+  gfx_draw_str(&light_gfx, str, printf_x, printf_y, WHITE);
+
+  printf_y += light_gfx.current_font->height;
+  printf_x = 4;
+  return 0;
+}
+
 void 
 get_light_gfx(light_gfx_t** gfx)
 {
