@@ -104,27 +104,26 @@ cache_gpt_header(disk_dev_t* device)
   uint32_t lb_size = 0;
   uint32_t lb_guesses[] = {
     512,
-    1024,
-    2048,
     4096,
   };
 
-  gpt_header_t header = { 0 };
+  uint8_t buffer[device->sector_size];
+  gpt_header_t* header = (gpt_header_t*)buffer;
 
   for (size_t i = 0; i < (sizeof(lb_guesses) / sizeof(uint32_t)); i++) {
 
     /* Read one block */
-    error = device->f_read(device, &header, sizeof(gpt_header_t), lb_guesses[i]);
+    error = device->f_bread(device, buffer, 1, lb_guesses[i] / device->sector_size);
 
     if (error)
       return;
 
-    printf((char*)header.signature);
+    printf((char*)header->signature);
 
     /* Check if the signature matches the one we need */
     //if (strncmp((void*)header->signature, "EFI PART", 8))
     //  continue;
-    if ((uintptr_t)header.signature != GPT_SIGNATURE)
+    if ((uintptr_t)header->signature != GPT_SIGNATURE)
       continue;
 
 
@@ -138,5 +137,5 @@ cache_gpt_header(disk_dev_t* device)
 
   device->partition_header = heap_allocate(sizeof(gpt_header_t));
 
-  memcpy((void*)device->partition_header, (void*)&header, sizeof(header));
+  memcpy((void*)device->partition_header, (void*)header, sizeof(*header));
 }

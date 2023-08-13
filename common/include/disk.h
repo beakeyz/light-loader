@@ -10,7 +10,7 @@ struct gpt_header;
 
 typedef struct disk_dev {
 
-  uintptr_t start_offset;
+  uintptr_t first_sector;
   size_t total_size;
   size_t sector_size;
   size_t total_sectors;
@@ -27,7 +27,7 @@ typedef struct disk_dev {
    * we clear the oldest cache
    */
   struct {
-    void* cache_ptr[8];
+    uint8_t* cache_ptr[8];
     uint32_t cache_block[8];
     uint8_t cache_dirty_flags;
     uint8_t cache_oldest;

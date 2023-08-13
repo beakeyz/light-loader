@@ -8,7 +8,7 @@
 #include "heap.h"
 #include "stddef.h"
 #include "sys/ctx.h"
-#include "sys/efi_disk.h"
+#include "sys/efidisk.h"
 #include <efi.h>
 #include <efierr.h>
 #include <efilib.h>

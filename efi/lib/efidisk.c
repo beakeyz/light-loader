@@ -7,7 +7,7 @@
 #include "stddef.h"
 #include "sys/ctx.h"
 #include <memory.h>
-#include <sys/efi_disk.h>
+#include <sys/efidisk.h>
 
 /*!
  * @brief Gets the cache where we put the block, or puts the block in a new cache
@@ -29,7 +29,7 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
   if ((dev->cache.cache_dirty_flags & (1 << cache_idx)) && dev->cache.cache_block[cache_idx] == block)
     goto success;
 
-  start_block = dev->start_offset / (dev->sector_size / 512);
+  start_block = dev->first_sector / (dev->sector_size / 512);
   current_transfer_factor = dev->optimal_transfer_factor;
 
   disk_clear_cache(dev, block);
@@ -79,10 +79,10 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
     read_size = size - current_offset;
 
     /* Constantly shave off lba_size */
-    if (read_size > lba_size - current_offset)
-      read_size = lba_size - current_offset;
+    if (read_size > lba_size - current_delta)
+      read_size = lba_size - current_delta;
 
-    memcpy((uint8_t*)buffer + current_offset, (uint8_t*)dev->cache.cache_ptr[current_cache_idx] + current_delta, read_size);
+    memcpy(buffer + current_offset, &dev->cache.cache_ptr[current_cache_idx][current_delta], read_size);
 
     current_offset += read_size;
   }
@@ -142,7 +142,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
 
   ret->total_size = media->LastBlock * media->BlockSize;
   ret->sector_size = media->BlockSize;
-  ret->start_offset = 0;
+  ret->first_sector = 0;
 
   ret->optimal_transfer_factor = media->OptimalTransferLengthGranularity;
 
@@ -174,15 +174,15 @@ init_efi_bootdisk()
   if (!efi_ctx->bootdisk_block_io || !efi_ctx->bootdisk_io)
     return;
 
+  /*
+   * NOTE: The 'bootdevice' is actually the bootpartition
+   */
   disk_dev_t* bootdevice = create_efi_disk(efi_ctx->bootdisk_block_io, efi_ctx->bootdisk_io);
 
   if (!bootdevice)
     return;
 
   register_bootdevice(bootdevice);
-
-  /* Gather the gpt header from the device */
-  cache_gpt_header(bootdevice);
 
   if (bootdevice->partition_header) {
     printf("Found partition header: ");
