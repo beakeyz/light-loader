@@ -3,10 +3,12 @@
 #include "efidef.h"
 #include "efierr.h"
 #include "efiprot.h"
+#include "fs.h"
 #include "heap.h"
 #include "stddef.h"
 #include "sys/ctx.h"
 #include <memory.h>
+#include <stdio.h>
 #include <sys/efidisk.h>
 
 /*!
@@ -132,6 +134,9 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   efi_private = heap_allocate(sizeof(efi_disk_stuff_t));
   ret = heap_allocate(sizeof(disk_dev_t));
 
+  memset(ret, 0, sizeof(disk_dev_t));
+  memset(efi_private, 0, sizeof(efi_disk_stuff_t));
+
   media = blockio->Media;
 
   efi_private->diskio = diskio;
@@ -165,6 +170,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
 void
 init_efi_bootdisk()
 {
+  int error;
   light_ctx_t* ctx;
   efi_ctx_t* efi_ctx;
 
@@ -182,21 +188,15 @@ init_efi_bootdisk()
   if (!bootdevice)
     return;
 
+  bootdevice->flags |= DISK_FLAG_PARTITION;
+
   register_bootdevice(bootdevice);
 
-  if (bootdevice->partition_header) {
-    printf("Found partition header: ");
-    char d[9];
-    memcpy((uint8_t*)d, bootdevice->partition_header->signature, 8);
-    d[8] = 0;
-    printf(d);
+  error = disk_probe_fs(bootdevice);
+
+  if (!error) {
+    printf("Could probe for filesystem!");
   } else {
-    printf("Could not find partition_header");
+    printf("Could not probe for filesystem!");
   }
-
-  /* Go through each partition */
-  for (uint8_t i = 0; i < MAX_PARTITION_COUNT; i++) {
-    
-  }
-
 }

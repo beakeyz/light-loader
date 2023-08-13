@@ -4,6 +4,7 @@
 #include "efidevp.h"
 #include "efiprot.h"
 #include "framebuffer.h"
+#include "fs.h"
 #include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
@@ -13,6 +14,7 @@
 #include <efierr.h>
 #include <efilib.h>
 #include <memory.h>
+#include <stdio.h>
 
 #define INITIAL_HEAPSIZE 64 * Mib 
 
@@ -132,6 +134,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   printf("Yay");
   printf("I love soup");
   printf("Very much");
+
+  init_fs();
 
   init_efi_bootdisk();
 

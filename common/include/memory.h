@@ -10,7 +10,7 @@
 #define ALIGN_DOWN(addr, size) ((addr) - ((addr) % (size)))
 
 void memset(void*, int, size_t);
-void* memcpy(uint8_t* dst, const uint8_t* src, size_t size);
+void* memcpy(void* dst, const void* src, size_t size);
 int strncmp(const char *s1, const char *s2, size_t n);
 
 #endif // !__LIGHLOADER_MEMORY__

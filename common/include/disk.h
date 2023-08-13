@@ -8,13 +8,17 @@
 struct light_fs;
 struct gpt_header;
 
+#define DISK_FLAG_PARTITION     0x00000001
+#define DISK_FLAG_OPTICAL       0x00000002
+
 typedef struct disk_dev {
 
   uintptr_t first_sector;
   size_t total_size;
   size_t sector_size;
   size_t total_sectors;
-  size_t optimal_transfer_factor;
+  uint32_t optimal_transfer_factor;
+  uint32_t flags;
   
   /* Platform specific stuff */
   void* private;
@@ -36,7 +40,12 @@ typedef struct disk_dev {
   } cache;
 
   struct light_fs* filesystem;
-  struct gpt_header* partition_header;
+
+  union {
+    struct gpt_entry_t* partition_entry;
+    struct gpt_header* partition_header;
+  };
+
   struct disk_dev* next_partition;
 
   /* I/O opperations for every disk */
@@ -48,14 +57,14 @@ typedef struct disk_dev {
 
 void register_bootdevice(disk_dev_t* device);
 void register_partition(disk_dev_t* device);
+
+void cache_gpt_entry(disk_dev_t* device);
 void cache_gpt_header(disk_dev_t* device);
 
 int disk_init_cache(disk_dev_t* device);
 
 uint8_t disk_select_cache(disk_dev_t* device, uint64_t block);
 int disk_clear_cache(disk_dev_t* device, uint64_t block);
-
-#define GPT_SIGNATURE 0x5452415020494645ULL
 
 typedef struct gpt_header {
   uint8_t signature[8];

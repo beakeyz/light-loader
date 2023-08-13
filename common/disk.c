@@ -5,6 +5,7 @@
 #include "stddef.h"
 #include <memory.h>
 #include <ctx.h>
+#include <stdio.h>
 
 disk_dev_t* bootdevice = nullptr;
 
@@ -118,14 +119,9 @@ cache_gpt_header(disk_dev_t* device)
     if (error)
       return;
 
-    printf((char*)header->signature);
-
     /* Check if the signature matches the one we need */
-    //if (strncmp((void*)header->signature, "EFI PART", 8))
-    //  continue;
-    if ((uintptr_t)header->signature != GPT_SIGNATURE)
+    if (strncmp((void*)header->signature, "EFI PART", 8))
       continue;
-
 
     lb_size = lb_guesses[i];
 
@@ -135,7 +131,29 @@ cache_gpt_header(disk_dev_t* device)
   if (!lb_size)
     return;
 
-  device->partition_header = heap_allocate(sizeof(gpt_header_t));
+  if (!device->partition_header)
+    device->partition_header = heap_allocate(sizeof(gpt_header_t));
 
   memcpy((void*)device->partition_header, (void*)header, sizeof(*header));
+}
+
+void
+cache_gpt_entry(disk_dev_t* device)
+{
+  int error;
+  uint8_t buffer[device->sector_size];
+  gpt_entry_t* entry;
+
+  error = device->f_bread(device, buffer, 1, 0);
+
+  if (error)
+    return;
+
+  entry = (gpt_entry_t*)buffer;
+
+  for (uint64_t i = 0; i < 36*8; i++) {
+    gfx_putchar(*((char*)entry->partition_name+i));
+    if (i % 24 == 0)
+      printf(" | ");
+  }
 }

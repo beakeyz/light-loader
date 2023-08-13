@@ -45,8 +45,5 @@ typedef struct light_ctx {
 void init_light_ctx(void (*platform_setup)(light_ctx_t* p_ctx));
 light_ctx_t* get_light_ctx();
 
-
-#define printf(...) get_light_ctx()->f_printf(__VA_ARGS__)
-
 extern light_ctx_t g_light_ctx;
 #endif // !__LIGHLOADER_CTX__

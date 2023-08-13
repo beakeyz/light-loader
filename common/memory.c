@@ -10,7 +10,7 @@ memset(void* start, int val, size_t size)
 }
 
 void*
-memcpy(uint8_t* dst, const uint8_t* src, size_t size)
+memcpy(void* dst, const void* src, size_t size)
 {
   uint8_t* _dst = (uint8_t*)dst;
   uint8_t* _src = (uint8_t*)src;
