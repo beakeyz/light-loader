@@ -2,9 +2,12 @@
 #include "disk.h"
 #include "efidef.h"
 #include "efierr.h"
+#include "efilib.h"
 #include "efiprot.h"
+#include "elf64.h"
 #include "file.h"
 #include "fs.h"
+#include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
 #include "sys/ctx.h"
@@ -55,7 +58,6 @@ success:
   dev->cache.cache_usage_count[cache_idx]++;
 
   return cache_idx;
-
 out:
   return 0xFF;
 }
@@ -71,7 +73,7 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
   lba_size = dev->optimal_transfer_factor * dev->sector_size;
 
   while (current_offset < size) {
-    current_block = ALIGN_DOWN((offset + current_offset), lba_size) / lba_size;
+    current_block = (offset + current_offset) / lba_size;
     current_delta = (offset + current_offset) % lba_size;
 
     current_cache_idx = __cached_read(dev, current_block);
@@ -201,19 +203,22 @@ init_efi_bootdisk()
     printf("Could not probe for filesystem!");
   }
 
-  light_file_t* file = bootdevice->filesystem->f_open(bootdevice->filesystem, "rdisk.igz");
+  light_file_t* file = bootdevice->filesystem->f_open(bootdevice->filesystem, "kernel.elf");
 
-  if (file)
-    printf("Could open file!");
-  else 
-    printf("Could not open file!");
+  printf("Opened kernel.elf");
 
-  file->f_close(file);
+  Elf64_Ehdr header;
 
-  file = bootdevice->filesystem->f_open(bootdevice->filesystem, "kernel.elf");
+  error = file->f_read(file, &header, sizeof(header), 0);
 
-  if (file)
-    printf("Could open file!");
-  else 
-    printf("Could not open file!");
+  if (error)
+    printf("Failed to read all of the file");
+
+  printf((char*)header.e_ident);
+
+  Elf64_Ehdr* buffer = heap_allocate(file->filesize);
+
+  error = file->f_readall(file, buffer);
+
+  printf((char*)buffer->e_ident);
 }

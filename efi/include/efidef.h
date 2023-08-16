@@ -21,6 +21,7 @@ Revision History
 --*/
 
 #include "x86_64/efibind.h"
+#include <stddef.h>
 
 typedef UINT16          CHAR16;
 typedef UINT8           CHAR8;

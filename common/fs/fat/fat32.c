@@ -23,41 +23,6 @@ typedef struct fat_private {
   uint32_t flags;
 } fat_private_t;
 
-static int
-__fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
-{
-  return 0;
-}
-
-static int 
-__fat32_file_read(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
-{
-  return 0;
-}
-
-static int 
-__fat32_file_readall(struct light_file* file, void* buffer)
-{
-  return 0;
-}
-
-static int
-__fat32_file_close(struct light_file* file)
-{
-  fat_file_t* ffile;
-
-  ffile = file->private;
-
-  /* Clear the cluster chain */
-  if (ffile->cluster_chain)
-    heap_free(ffile->cluster_chain);
-
-  /* Clear the rest of the file */
-  heap_free(file->private);
-  heap_free(file);
-  return 0;
-}
-
 int 
 fat32_probe(light_fs_t* fs, disk_dev_t* device)
 {
@@ -221,7 +186,7 @@ __fat32_load_clusters(light_fs_t* fs, void* buffer, fat_file_t* file, uint32_t s
 
   fat_private_t* p;
 
-  if (!fs->private || !file->cluster_chain)
+  if (!fs || !fs->private || !file || !file->cluster_chain)
     return -1;
 
   p = fs->private;
@@ -235,13 +200,16 @@ __fat32_load_clusters(light_fs_t* fs, void* buffer, fat_file_t* file, uint32_t s
 
     current_delta = count - index;
 
-    /* Limit the delta to the size of a cluster, except if we try to get an unaligned size */
+    /* Limit the delta to the size of a cluster, except if we try to get an unaligned size smaller than 'cluster_size' */
     if (current_delta > p->cluster_size - current_deviation)
       current_delta = p->cluster_size - current_deviation;
 
     current_cluster_offset = (p->usable_clusters_start + (file->cluster_chain[current_index] - 2) * p->bpb.sectors_per_cluster) * p->bpb.bytes_per_sector;
 
     error = fs->device->f_read(fs->device, buffer + index, current_delta, current_cluster_offset + current_deviation);
+
+    if (error)
+      return -2;
 
     index += current_delta;
   }
@@ -334,12 +302,9 @@ __fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t
   if (error && (p->flags & FAT_FLAG_NO_LFN) == FAT_FLAG_NO_LFN)
     goto fail_dealloc_dir_entries;
 
-  printf("Tried to get dir entries");
   /* Loop over all the directory entries and check if any paths match ours */
   for (uint32_t i = 0; i < dir_entries_count; i++) {
     fat_dir_entry_t entry = dir_entries[i];
-
-    printf((char*)entry.dir_name);
 
     /* Space kinda cringe */
     if (entry.dir_name[0] == ' ')
@@ -374,6 +339,56 @@ fail_dealloc_cchain:
   return error;
 }
 
+static int
+__fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
+{
+  /* TODO: */
+  return -1;
+}
+
+static int 
+__fat32_file_read(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
+{
+  /* Yay, raw reads */
+  return __fat32_load_clusters(file->parent_fs, buffer, file->private, offset, size);
+}
+
+static int 
+__fat32_file_readall(struct light_file* file, void* buffer)
+{
+  size_t total_size;
+  fat_private_t* p;
+  fat_file_t* ffile = file->private;
+
+  if (!ffile)
+    return -1;
+
+  p = file->parent_fs->private;
+  total_size = ffile->cluster_chain_length * p->cluster_size;
+
+  printf("Reading");
+
+  return __fat32_load_clusters(file->parent_fs, buffer, ffile, 0, total_size);
+}
+
+static int
+__fat32_file_close(struct light_file* file)
+{
+  fat_file_t* ffile;
+
+  ffile = file->private;
+
+  /* Clear the cluster chain */
+  if (ffile->cluster_chain)
+    heap_free(ffile->cluster_chain);
+
+  /* Clear the rest of the file */
+  heap_free(file->private);
+  heap_free(file);
+  return 0;
+}
+
+
 light_file_t*
 fat32_open(light_fs_t* fs, char* path)
 {
@@ -395,6 +410,7 @@ fat32_open(light_fs_t* fs, char* path)
   memcpy(path_buffer, path, path_size);
 
   file->private = ffile;
+  file->parent_fs = fs;
   p = fs->private;
 
   fat_dir_entry_t current = p->root_entry;
@@ -415,7 +431,6 @@ fat32_open(light_fs_t* fs, char* path)
     if (error)
       goto fail_and_deallocate;
 
-    printf("opening thing");
     /*
      * If we found our file (its not a directory) we can populate the file object and return it
      */

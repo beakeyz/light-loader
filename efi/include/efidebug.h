@@ -579,9 +579,6 @@ EFI_DEBUG_IMAGE_INFO  *EfiDebugImageInfoTable;
 // EFI_DEBUGGER_PROTOCOL
 //
 
-#define EFI_DEBUG_SUPPORT_PROTOCOL_GUID \
-    { 0x2755590c, 0x6f3c, 0x42fa, {0x9e, 0xa4, 0xa3, 0xba, 0x54, 0x3c, 0xda, 0x25} }
-
 INTERFACE_DECL(_EFI_DEBUG_SUPPORT_PROTOCOL);
 
 typedef

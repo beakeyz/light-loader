@@ -33,6 +33,7 @@ override INTERNAL_LDFLAGS :=	\
 override INTERNAL_CFLAGS :=  \
     -std=gnu11              \
 	-nostdlib 				\
+	-Wall 		 			\
     -ffreestanding          \
     -fno-stack-protector    \
     -fno-stack-check        \
@@ -161,6 +162,16 @@ else
 	rm -rf $(BOOTRT_DIR)
 
 endif
+
+.PHONY: clean
+clean: ## Remove any object files or binaries from the project
+	@echo "[LOADER] cleaning elf..."
+	@rm $(BIN_OUT)/$(OUT_ELF) 
+	@rm $(BIN_OUT)/$(OUT_EFI) 
+	@rm $(BIN_OUT)/$(OUT_IMAGE) 
+	@echo "[LOADER] cleaning objs..."
+	@rm -rf $(C_OBJ) $(S_OBJ) $(HEADER_DEPS) 
+	@echo "[LOADER] done cleaning!"
 
 .PHONY: debug
 debug: ## Run lightloader in Qemu
