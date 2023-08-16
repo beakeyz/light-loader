@@ -3,6 +3,7 @@
 #include "efidef.h"
 #include "efierr.h"
 #include "efiprot.h"
+#include "file.h"
 #include "fs.h"
 #include "heap.h"
 #include "stddef.h"
@@ -70,7 +71,7 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
   lba_size = dev->optimal_transfer_factor * dev->sector_size;
 
   while (current_offset < size) {
-    current_block = (offset + current_offset) / lba_size;
+    current_block = ALIGN_DOWN((offset + current_offset), lba_size) / lba_size;
     current_delta = (offset + current_offset) % lba_size;
 
     current_cache_idx = __cached_read(dev, current_block);
@@ -84,7 +85,7 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
     if (read_size > lba_size - current_delta)
       read_size = lba_size - current_delta;
 
-    memcpy(buffer + current_offset, &dev->cache.cache_ptr[current_cache_idx][current_delta], read_size);
+    memcpy(buffer + current_offset, &(dev->cache.cache_ptr[current_cache_idx])[current_delta], read_size);
 
     current_offset += read_size;
   }
@@ -199,4 +200,20 @@ init_efi_bootdisk()
   } else {
     printf("Could not probe for filesystem!");
   }
+
+  light_file_t* file = bootdevice->filesystem->f_open(bootdevice->filesystem, "rdisk.igz");
+
+  if (file)
+    printf("Could open file!");
+  else 
+    printf("Could not open file!");
+
+  file->f_close(file);
+
+  file = bootdevice->filesystem->f_open(bootdevice->filesystem, "kernel.elf");
+
+  if (file)
+    printf("Could open file!");
+  else 
+    printf("Could not open file!");
 }

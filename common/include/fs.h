@@ -43,8 +43,8 @@ typedef struct light_fs {
   uint8_t fs_type;
   
   struct light_file* (*f_open)(struct light_fs* fs, char* path);
-  int (*f_close)(struct light_file*);
-  int (*f_probe)(struct light_fs* this, struct disk_dev* device);
+  int (*f_close)(struct light_fs* fs, struct light_file*);
+  int (*f_probe)(struct light_fs* fs, struct disk_dev* device);
 
   struct light_fs* next;
 } light_fs_t;

@@ -83,6 +83,11 @@ typedef struct {
   char m_file_chars_three[4];
 } __attribute__((packed)) fat_lfn_entry_t;
 
+typedef struct {
+  uint32_t* cluster_chain;
+  size_t cluster_chain_length;
+} fat_file_t;
+
 void init_fat_fs();
 
 #endif // !__LIGHTLOADER_FAT32__

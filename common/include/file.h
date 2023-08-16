@@ -11,9 +11,11 @@ typedef struct light_file {
   size_t filesize;
 
   struct light_fs* parent_fs;
+
+  void* private;
   
-  int (*f_read)(struct light_file* file, void* buffer, size_t size, uintptr_t offset);
   int (*f_write)(struct light_file* file, void* buffer, size_t size, uintptr_t offset);
+  int (*f_read)(struct light_file* file, void* buffer, size_t size, uintptr_t offset);
   int (*f_readall)(struct light_file* file, void* buffer);
 
   int (*f_close)(struct light_file* file);

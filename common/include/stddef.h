@@ -17,6 +17,10 @@
 #define USED __attribute__((used))
 #define UNUSED __attribute__((unused))
 
+// ascii encoding 
+#define TO_UPPERCASE(c) ((c >= 'a' && c <= 'z') ? c - 0x20 : c)
+#define TO_LOWERCASE(c) ((c >= 'A' && c <= 'Z') ? c + 0x20 : c)
+
 #define Kib 1024
 #define Mib Kib * Kib
 #define Gib Mib * Kib
