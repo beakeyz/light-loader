@@ -9,8 +9,13 @@
 
 #include "disk.h"
 #include "efiprot.h"
+#include "key.h"
+#include "mouse.h"
+#include "rsdp.h"
 #include <stddef.h>
 #include <stdint.h>
+
+struct light_mmap_entry;
 
 typedef struct light_ctx {
 
@@ -22,7 +27,11 @@ typedef struct light_ctx {
   void* private;
 
   /* Put a reference to the memory map here */
-  void* mmap;
+  struct light_mmap_entry* mmap;
+  size_t mmap_entries;
+
+  /* Either the rsdp or the xsdp */
+  system_ptrs_t sys_ptrs;
 
   /*
    * Put a reference to the disk structure that we where loaded 
@@ -33,6 +42,7 @@ typedef struct light_ctx {
   /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
   int (*f_exit)();
 
+  /* Mmap, syspointers, ect. */
   int (*f_gather_sys_info)();
 
   /* General memory allocation for data */
@@ -40,6 +50,16 @@ typedef struct light_ctx {
   void (*f_deallcoate)(void* addr, size_t size);
 
   int (*f_printf)(char* fmt, ...);
+
+  bool (*f_has_keyboard)();
+  bool (*f_has_mouse)();
+
+  void (*f_init_keyboard)();
+  void (*f_init_mouse)();
+
+  int (*f_get_keypress)(light_key_t* key);
+  int (*f_get_mousepos)(light_mousepos_t* pos);
+
 } light_ctx_t;
 
 void init_light_ctx(void (*platform_setup)(light_ctx_t* p_ctx));

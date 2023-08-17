@@ -133,5 +133,4 @@ init_framebuffer()
   */
 
   /* Make sure to release the gfx again */
-  put_light_gfx();
 }

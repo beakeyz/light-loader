@@ -21,6 +21,13 @@
 static efi_ctx_t __efi_ctx = { 0 };
 efi_ctx_t* efi_ctx;
 
+extern void efi_init_keyboard();
+extern void efi_init_mouse();
+extern bool efi_has_keyboard();
+extern bool efi_has_mouse();
+extern int efi_get_mousepos(light_mousepos_t* pos);
+extern int efi_get_keypress(light_key_t* key);
+
 void
 efi_exit(EFI_STATUS exit)
 {
@@ -34,6 +41,16 @@ efi_exit_bs()
   /* Create and cache final memmap */
   /* Exit BootServices */
   return 0;
+}
+
+static int
+efi_gather_sysinfo()
+{
+  light_ctx_t* ctx = get_light_ctx();
+
+  gather_system_pointers(&ctx->sys_ptrs);
+
+  return gather_memmap(ctx);
 }
 
 static void
@@ -53,6 +70,16 @@ efi_setup_ctx(light_ctx_t* ctx)
 
   /* For any EFI loader, use the generic gfx printf routine, to get formated pixels on the screen */
   ctx->f_printf = gfx_printf;
+  ctx->f_gather_sys_info = efi_gather_sysinfo;
+
+  ctx->f_init_mouse = efi_init_mouse;
+  ctx->f_has_mouse = efi_has_mouse;
+
+  ctx->f_init_keyboard = efi_init_keyboard;
+  ctx->f_has_keyboard = efi_has_keyboard;
+
+  ctx->f_get_keypress = efi_get_keypress;
+  ctx->f_get_mousepos = efi_get_mousepos;
 
   efi_ctx = &__efi_ctx;
 
@@ -90,6 +117,7 @@ efi_setup_ctx(light_ctx_t* ctx)
 EFI_STATUS
 efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
 {
+  gfx_frontend_result_t result;
   EFI_STATUS stat;
   uint64_t heap_addr;
 
@@ -131,18 +159,25 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   /* Initialize the framebuffer for quick debug capabilities */
   init_framebuffer();
 
-  printf("Yay");
-  printf("I love soup");
-  printf("Very much");
-
+  /* Initialize the filesystems */
   init_fs();
 
+  /* Create the efi bootdisk, aka the 'partition' that we where booted from and where the kernel files should be aswell */
   init_efi_bootdisk();
 
-  if (get_efi_context()->bootdisk_block_io)
-    printf("Got block io");
-  else 
-    printf("Failed to get block io");
+  /* Grab some system information */
+  get_light_ctx()->f_gather_sys_info();
+
+  /* Enter the frontend for user interaction */
+  result = gfx_enter_frontend();
+
+  /* TODO */
+  switch (result) {
+    case BOOT_MULTIBOOT:
+      break;
+    default:
+      break;
+  }
 
   for (;;) {}
   

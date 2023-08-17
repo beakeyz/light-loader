@@ -62,11 +62,41 @@ void gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
 void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t clr);
 void gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr);
 
+void gfx_draw_rect(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr);
+void gfx_draw_rect_outline(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr);
+void gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light_color_t clr);
+
 int gfx_printf(char* str, ...);
 int gfx_putchar(char c);
 
 void get_light_gfx(light_gfx_t** gfx);
-void put_light_gfx();
+
+typedef enum gfx_logo_pos {
+  LOGO_POS_NONE = 0,
+  LOGO_POS_CENTER = 1,
+  LOGO_POS_TOP_BAR_RIGHT,
+  LOGO_POS_BOTTOM_BAR_RIGHT,
+} gfx_logo_pos_t;
+
+void gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t pos);
+
+/*
+ * When we exit the frontend, these are the things we can do
+ */
+typedef enum gfx_frontend_result {
+  /* We are probably in a good install. Just boot from this disk */
+  BOOT_MULTIBOOT = 0,
+  /* Just clean and reboot (probably an error) */
+  REBOOT,
+  /* We are not sure about the install, verify files */
+  VERIFY_INSTALL,
+  /* We want to install on a different disk */
+  LAUNCH_INSTALLER,
+  /* Launch the autoupdater to check for updates */
+  LAUNCH_AUTOUPDATES,
+} gfx_frontend_result_t;
+
+gfx_frontend_result_t gfx_enter_frontend();
 
 void init_light_gfx();
 

@@ -2,6 +2,9 @@
 #define __LIGHTLOADER_EFI_CTX__
 
 #include "efiprot.h"
+#include "rsdp.h"
+
+struct light_ctx;
 
 typedef struct efi_ctx {
 
@@ -17,6 +20,9 @@ typedef struct efi_ctx {
   EFI_FILE_PROTOCOL* bootdisk_file;
 
 } efi_ctx_t;
+
+void gather_system_pointers(system_ptrs_t* ptrs);
+int gather_memmap(struct light_ctx* ctx);
 
 efi_ctx_t* get_efi_context();
 

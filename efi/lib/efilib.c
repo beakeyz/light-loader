@@ -65,3 +65,22 @@ open_protocol(EFI_HANDLE handle, EFI_GUID* guid, void** out)
 {
   return (BS->OpenProtocol(handle, guid, out, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL));
 }
+
+VOID *
+AllocatePool (IN UINTN Size)
+{
+  EFI_STATUS status;
+  void* ret;
+  status = BS->AllocatePool(EfiLoaderData, Size, &ret);
+
+  if (EFI_ERROR(status))
+    return nullptr;
+
+  return ret;
+}
+
+VOID
+FreePool (IN VOID *p)
+{
+  BS->FreePool(p);
+}

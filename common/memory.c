@@ -34,6 +34,18 @@ int strncmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
+bool memcmp(const void* a, const void* b, size_t size)
+{
+  uint8_t* _a = (uint8_t*)a;
+  uint8_t* _b = (uint8_t*)b;
+  for (uintptr_t i = 0; i < size; i++) {
+    if (_a[i] != _b[i])
+      return false;
+  }
+
+  return true;
+}
+
 size_t strlen(const char* s)
 {
   size_t ret = 0;

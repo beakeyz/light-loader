@@ -2,6 +2,8 @@
 #define __LIGHTLOADER_FONT__
 
 #include <stdint.h>
+#include <memory.h>
+
 typedef struct light_font {
   /* Width and Height, counted in pixels */
   uint8_t width, height;
@@ -20,6 +22,12 @@ typedef struct light_glyph {
 
 int lf_get_glyph_at(light_font_t* font, uint32_t index, light_glyph_t* out);
 int lf_get_glyph_for_char(light_font_t* font, char c, light_glyph_t* out);
+
+static inline size_t
+lf_get_str_width(light_font_t* font, char* string)
+{
+  return strlen(string) * font->width;
+}
 
 extern light_font_t default_light_font;
 

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define LOGO_SIDE_PADDING 4
+
 typedef struct light_logo {
   uint_t  	 width;
   uint_t  	 height;

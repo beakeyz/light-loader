@@ -196,29 +196,4 @@ init_efi_bootdisk()
   register_bootdevice(bootdevice);
 
   error = disk_probe_fs(bootdevice);
-
-  if (!error) {
-    printf("Could probe for filesystem!");
-  } else {
-    printf("Could not probe for filesystem!");
-  }
-
-  light_file_t* file = bootdevice->filesystem->f_open(bootdevice->filesystem, "kernel.elf");
-
-  printf("Opened kernel.elf");
-
-  Elf64_Ehdr header;
-
-  error = file->f_read(file, &header, sizeof(header), 0);
-
-  if (error)
-    printf("Failed to read all of the file");
-
-  printf((char*)header.e_ident);
-
-  Elf64_Ehdr* buffer = heap_allocate(file->filesize);
-
-  error = file->f_readall(file, buffer);
-
-  printf((char*)buffer->e_ident);
 }
