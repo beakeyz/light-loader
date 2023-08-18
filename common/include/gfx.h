@@ -51,7 +51,7 @@ typedef struct light_gfx {
   struct light_font* current_font;
 
   /* Yay, doublebuffering 0.0 */
-  uint32_t* back_fb;
+  uintptr_t back_fb;
   size_t back_fb_pages;
 
 } light_gfx_t;
@@ -73,6 +73,8 @@ void gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, 
 
 int gfx_printf(char* str, ...);
 int gfx_putchar(char c);
+
+int gfx_switch_buffers(light_gfx_t* gfx);
 
 void get_light_gfx(light_gfx_t** gfx);
 

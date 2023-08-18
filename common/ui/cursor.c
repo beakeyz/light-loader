@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <ui/cursor.h>
 
-#define DEFAULT_CURSOR_WIDTH 32
-#define DEFAULT_CURSOR_HEIGHT 32
+#define DEFAULT_CURSOR_WIDTH 16
+#define DEFAULT_CURSOR_HEIGHT 16
 #define CURSOR_PATH "res/lcrsor.bmp"
 
 light_image_t* cursor;

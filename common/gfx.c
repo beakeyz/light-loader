@@ -66,11 +66,10 @@ gfx_transform_pixel(light_gfx_t* gfx, uint32_t clr)
 uint32_t
 gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
 {
-  if (x >= gfx->width || y >= gfx->height)
+  if (x >= gfx->width || y >= gfx->height || !gfx->back_fb)
     return NULL;
 
-
-  return *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t));
+  return *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t));
 }
 
 void
@@ -79,12 +78,10 @@ gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
   if (x >= gfx->width || y >= gfx->height)
     return;
 
-  /* TODO; */
-  if (gfx->back_fb) {
-    // return;
-  }
+  if (!gfx->back_fb)
+    return;
 
-  *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+  *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
 }
 
 int 
@@ -104,7 +101,6 @@ lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out)
 void
 gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
 {
-
   if (!clr.alpha)
     return;
   
@@ -192,6 +188,17 @@ gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light
       gfx_draw_pixel(gfx, x + j, y + i, clr);
     }
   }
+}
+
+int 
+gfx_switch_buffers(light_gfx_t* gfx)
+{
+  for (uint32_t i = 0; i < gfx->height; i++) {
+    for (uint32_t j = 0; j < gfx->width; j++) {
+      *(uint32_t volatile*)(gfx->phys_addr + j * gfx->bpp / 8 + i * gfx->stride * sizeof(uint32_t)) = gfx_get_pixel(gfx, j, i);
+    }
+  }
+  return 0;
 }
 
 /*
@@ -326,6 +333,8 @@ gfx_frontend_result_t gfx_enter_frontend()
     ctx->f_get_keypress(&key_buffer);
 
     draw_cursor(&light_gfx, mouse_buffer.x, mouse_buffer.y);
+
+    gfx_switch_buffers(&light_gfx);
   }
 }
 
