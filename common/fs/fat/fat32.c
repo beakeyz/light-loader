@@ -232,7 +232,7 @@ transform_fat_filename(char* dest, const char* src)
   while (src[src_dot_idx + i]) {
     // limit exceed
     if (i >= 11 || (i >= 8 && !found_ext)) {
-      return -1;
+      return 0;
     }
 
     // we have found the '.' =D
@@ -366,8 +366,6 @@ __fat32_file_readall(struct light_file* file, void* buffer)
   p = file->parent_fs->private;
   total_size = ffile->cluster_chain_length * p->cluster_size;
 
-  printf("Reading");
-
   return __fat32_load_clusters(file->parent_fs, buffer, ffile, 0, total_size);
 }
 
@@ -413,6 +411,7 @@ fat32_open(light_fs_t* fs, char* path)
   file->parent_fs = fs;
   p = fs->private;
 
+  uintptr_t current_idx = 0;
   fat_dir_entry_t current = p->root_entry;
 
   /* Do opening lmao */
@@ -426,7 +425,7 @@ fat32_open(light_fs_t* fs, char* path)
     /* Place a null-byte */
     path_buffer[i] = '\0';
 
-    error = __fat32_open_dir_entry(fs, &current, &current, path_buffer);
+    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx]);
 
     if (error)
       goto fail_and_deallocate;
@@ -450,6 +449,9 @@ fat32_open(light_fs_t* fs, char* path)
 
       break;
     }
+
+    /* Set the current index if we have successfuly 'switched' directories */
+    current_idx = i + 1;
 
     /*
      * Place back the slash

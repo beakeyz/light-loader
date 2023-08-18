@@ -58,6 +58,8 @@ typedef struct disk_dev {
 void register_bootdevice(disk_dev_t* device);
 void register_partition(disk_dev_t* device);
 
+disk_dev_t* get_bootdevice();
+
 void cache_gpt_entry(disk_dev_t* device);
 void cache_gpt_header(disk_dev_t* device);
 

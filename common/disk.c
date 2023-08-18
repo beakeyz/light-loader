@@ -31,6 +31,12 @@ register_partition(disk_dev_t* device)
   device->next_partition = nullptr;
 }
 
+disk_dev_t* 
+get_bootdevice()
+{
+  return bootdevice;
+}
+
 int 
 disk_init_cache(disk_dev_t* device)
 {

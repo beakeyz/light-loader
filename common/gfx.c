@@ -2,9 +2,12 @@
 #include "efilib.h"
 #include "font.h"
 #include "key.h"
-#include "logo.h"
+#include "image.h"
 #include "mouse.h"
+#include "ui/box.h"
 #include "ui/component.h"
+#include "ui/cursor.h"
+#include "ui/image.h"
 #include <gfx.h>
 #include <memory.h>
 #include <stdint.h>
@@ -47,8 +50,31 @@ transform_light_clr(light_gfx_t* gfx, light_color_t clr)
   return fb_color;
 }
 
+light_color_t 
+gfx_transform_pixel(light_gfx_t* gfx, uint32_t clr)
+{
+  light_color_t ret = { 0 };
+
+  ret.red = clr & gfx->red_mask;
+  ret.green = clr & gfx->green_mask;
+  ret.blue = clr & gfx->blue_mask;
+  ret.alpha = clr & gfx->alpha_mask;
+
+  return ret;
+}
+
+uint32_t
+gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
+{
+  if (x >= gfx->width || y >= gfx->height)
+    return NULL;
+
+
+  return *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t));
+}
+
 void
-gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
+gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
 {
   if (x >= gfx->width || y >= gfx->height)
     return;
@@ -58,7 +84,33 @@ gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
     // return;
   }
 
-  *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = transform_light_clr(gfx, clr);
+  *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+}
+
+int 
+lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out)
+{
+  /* TODO: actual blending */
+
+  if (!fg.alpha) {
+    *out = bg;
+    return 0;
+  }
+
+  *out = fg;
+  return 0;
+}
+
+void
+gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
+{
+
+  if (!clr.alpha)
+    return;
+  
+  uint32_t transformed_clr = transform_light_clr(gfx, clr);
+
+  gfx_draw_pixel_raw(gfx, x, y, transform_light_clr(gfx, clr));
 }
 
 void
@@ -80,6 +132,9 @@ gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t cl
     for (uint8_t _x = 0; _x < gfx->current_font->width; _x++) {
       if (glyph_part & (1 << _x)) {
         gfx_draw_pixel(gfx, x + _x, y + _y, clr);
+      } else {
+        /* DEBUG */
+        gfx_draw_pixel(gfx, x + _x, y + _y, BLACK);
       }
     }
   }
@@ -223,22 +278,54 @@ gfx_frontend_result_t gfx_enter_frontend()
   light_key_t key_buffer = { 0 };
   light_mousepos_t mouse_buffer = { 0 };
   gfx_frontend_result_t result;
+  uint32_t prev_mousepx;
 
   if (!ctx->f_has_keyboard()) {
-    printf("Could not locate a keyboard!");
+    printf("Could not locate a keyboard! Plug in a keyboard and restart the PC.");
     return REBOOT;
   }
 
-  /* Display the logo */
-  gfx_display_logo(&light_gfx, 0, 0, LOGO_POS_TOP_BAR_RIGHT);
+  /*
+   * FIXME: the loader should still be able to function, even without a mouse
+   */
+  if (!ctx->f_has_mouse()) {
+    printf("Could not locate a mouse!");
+    return REBOOT;
+  }
 
-  /* Build the UI stack */
+  init_mouse();
+
+  init_keyboard();
+
+  /* Initialize the cursor */
+  init_cursor();
+
+  /* 
+   * Build the UI stack 
+   * NOTE: the component list gets drawn from top to 
+   * bottom, and when we create a new component, we automatically 
+   * add the component at the top. This means that when you
+   * want to add a background for example, you should add this 
+   * component last
+   */
+
   create_component(&root_component, COMPONENT_TYPE_LABEL, "Light Loader", 4, 4, 130, 24, NULL);
 
+  create_image(&root_component, nullptr, light_gfx.width - 128, 0, 0, 0, IMAGE_TYPE_INLINE, &default_logo);
+
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, 0, true, GRAY);
+
   while (true) {
+
     FOREACH_UI_COMPONENT(i, root_component) {
       draw_component(i, key_buffer, mouse_buffer);
     }
+
+    ctx->f_get_mousepos(&mouse_buffer);
+
+    ctx->f_get_keypress(&key_buffer);
+
+    draw_cursor(&light_gfx, mouse_buffer.x, mouse_buffer.y);
   }
 }
 

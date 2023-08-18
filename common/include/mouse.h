@@ -10,13 +10,19 @@
 #define MOUSE_SIDEBTN1 (1 << 4)
 
 typedef struct light_mousepos {
-  uint32_t x, y;
+  int32_t x, y;
   uint8_t btn_flags;
 } light_mousepos_t;
 
 void init_mouse();
 bool has_mouse();
-void get_previous_mousepos(light_mousepos_t* pos);
 void reset_mousepos(uint32_t x, uint32_t y, uint32_t x_limit, uint32_t y_limit);
+
+void get_mouse_delta(light_mousepos_t pos, int* dx, int* dy);
+
+void limit_mousepos(light_mousepos_t* pos);
+
+void set_previous_mousepos(light_mousepos_t mousepos);
+void get_previous_mousepos(light_mousepos_t* pos);
 
 #endif // !__LIGHTLOADER_MOUSE__

@@ -9,10 +9,12 @@
 struct light_font;
 struct light_gfx;
 
+#define COMPONENT_TYPE_BOX      (0)
 #define COMPONENT_TYPE_BUTTON   (1)
 #define COMPONENT_TYPE_LABEL    (2)
 #define COMPONENT_TYPE_SWITCH   (3)
 #define COMPONENT_TYPE_INPUTBOX (4)
+#define COMPONENT_TYPE_IMAGE    (5)
 
 typedef struct light_component {
   char* label;

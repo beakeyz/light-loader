@@ -1,6 +1,10 @@
-#include <logo.h>
+#include "file.h"
+#include "gfx.h"
+#include "heap.h"
+#include <image.h>
+#include <stdio.h>
 
-light_logo_t default_logo = {
+light_image_t default_logo = {
    .width = 128,
    .height = 128,
    .bytes_per_pixel = 3,
@@ -1746,3 +1750,87 @@ light_logo_t default_logo = {
     "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000",
    }
 };
+
+light_image_t*
+load_bmp_image(char* path)
+{
+  struct bmp_header* fbuffer;
+  light_image_t* image;
+  light_file_t* file = fopen(path);
+
+  if (!file || !file->filesize)
+    return nullptr;
+
+  fbuffer = heap_allocate(file->filesize);
+
+  file->f_readall(file, fbuffer);
+
+  if (fbuffer->magic[0] != 'B' && fbuffer->magic[1] != 'M') {
+    printf("Could not load bmp");
+    goto dealloc_and_fail;
+  }
+
+  image = heap_allocate(sizeof(light_image_t) + (fbuffer->bpp / 8) * fbuffer->width * fbuffer->height);
+
+  image->height = fbuffer->height;
+  image->width = fbuffer->width;
+  image->bytes_per_pixel = fbuffer->bpp / 8;
+
+  if (image->bytes_per_pixel != 4) {
+    printf("Could not load bmp, bpp != 32");
+    goto dealloc_and_fail;
+  }
+
+  uint64_t load_idx = 0;
+
+  for (uint32_t i = image->height; i; i--) {
+    for (uint32_t j = 0; j < image->width; j++) {
+      uint8_t* blue = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 0;
+      uint8_t* green = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 1;
+      uint8_t* red = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 2;
+      uint8_t* alpha = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 3;
+
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *blue;
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 1] = *green;
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *red;
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 3] = *alpha;
+
+      load_idx += image->bytes_per_pixel;
+    }
+  }
+    
+  return image;
+
+dealloc_and_fail:
+  heap_free(fbuffer);
+  file->f_close(file);
+  return nullptr;
+}
+
+
+void 
+draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
+{
+  for (uint32_t i = 0; i < l_image->height; i++) {
+    for (uint32_t j = 0; j < l_image->width; j++) {
+
+      uint8_t r = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 0];
+      uint8_t g = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 1];
+      uint8_t b = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 2];
+
+      uint8_t a;
+
+      if (l_image->bytes_per_pixel == 3)
+        a = 0xFF;
+      else
+        a = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 3];
+
+      gfx_draw_pixel(gfx, x + j, y + i, (light_color_t) {
+        .alpha = a,
+        .red = r,
+        .green = g,
+        .blue = b,
+      });
+    }
+  }
+}

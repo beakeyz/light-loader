@@ -25,4 +25,6 @@ int fread(light_file_t* file, void* buffer, size_t size, uintptr_t offset);
 int freadall(light_file_t* file, void* buffer);
 int fwrite(light_file_t* file, void* buffer, size_t size, uintptr_t offset);
 
+struct light_file* fopen(char* path);
+
 #endif // !__LIGHTLOADER_FILE__

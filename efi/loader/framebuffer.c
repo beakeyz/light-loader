@@ -21,8 +21,8 @@ init_framebuffer()
 {
   size_t handlelist_size;
   EFI_STATUS status;
-  EFI_HANDLE dummy_handle;
-  EFI_HANDLE* handle_list;
+  EFI_HANDLE dummy_handle = NULL;
+  EFI_HANDLE* handle_list = NULL;
   EFI_GUID gop_guid = gEfiGraphicsOutputProtocolGuid;
 
   size_t handle_count = locate_handle_with_buffer(ByProtocol, gop_guid, &handlelist_size, &handle_list);

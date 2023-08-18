@@ -53,3 +53,28 @@ size_t strlen(const char* s)
     ret++;
   return ret;
 }
+
+static char to_str_buff[128 * 2];
+
+char* to_string(uint64_t val) {
+    memset(to_str_buff, 0, sizeof(to_str_buff));
+    uint8_t size = 0;
+    uint64_t size_test = val;
+    while (size_test / 10 > 0) {
+        size_test /= 10;
+        size++;
+    }
+
+    uint8_t index = 0;
+    
+    while (val / 10 > 0) {
+        uint8_t remain = val % 10;
+        val /= 10;
+        to_str_buff[size - index] = remain + '0';
+        index++;
+    }
+    uint8_t remain = val % 10;
+    to_str_buff[size - index] = remain + '0';
+    to_str_buff[size + 1] = 0;
+    return to_str_buff;
+}

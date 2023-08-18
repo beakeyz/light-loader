@@ -54,6 +54,7 @@ override INTERNAL_CFLAGS :=  \
 
 OUT := ./out
 BIN_OUT := ./out/bin
+RESOURCE_DIR := res
 
 OUT_ELF := light-loader.elf
 OUT_EFI := LIGHT-LOADER.EFI
@@ -126,6 +127,7 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
+	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 	sync
 	# Cleanup
 	sudo umount $(BOOTRT_DIR)/
@@ -156,11 +158,11 @@ else
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
+	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 	sync
 
 	sudo umount $(BOOTRT_DIR)
 	rm -rf $(BOOTRT_DIR)
-
 endif
 
 .PHONY: clean

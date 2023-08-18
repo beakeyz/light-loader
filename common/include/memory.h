@@ -40,4 +40,6 @@ int strncmp(const char *s1, const char *s2, size_t n);
 
 size_t strlen(const char* s);
 
+char* to_string(uint64_t val);
+
 #endif // !__LIGHLOADER_MEMORY__

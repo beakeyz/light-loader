@@ -49,3 +49,26 @@ reset_mousepos(uint32_t x, uint32_t y, uint32_t x_limit, uint32_t y_limit)
   _x_limit = x_limit;
   _y_limit = y_limit;
 }
+
+void
+get_mouse_delta(light_mousepos_t pos, int* dx, int* dy)
+{
+  *dx = pos.x - previous_mousepos.x;
+  *dy = pos.y - previous_mousepos.y;
+}
+
+void 
+limit_mousepos(light_mousepos_t* pos)
+{
+  if (pos->x > _x_limit) pos->x = _x_limit;
+  if (pos->x < 0) pos->x = 0;
+
+  if (pos->y > _y_limit) pos->y = _y_limit;
+  if (pos->y < 0) pos->y = 0;
+}
+
+void 
+set_previous_mousepos(light_mousepos_t mousepos)
+{
+  memcpy(&previous_mousepos, &mousepos, sizeof(light_mousepos_t));
+}
