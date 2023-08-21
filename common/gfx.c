@@ -1,13 +1,17 @@
 #include "ctx.h"
 #include "efilib.h"
+#include "efiprot.h"
 #include "font.h"
 #include "key.h"
 #include "image.h"
 #include "mouse.h"
 #include "ui/box.h"
+#include "ui/button.h"
 #include "ui/component.h"
 #include "ui/cursor.h"
 #include "ui/image.h"
+#include "ui/screens/home.h"
+#include "ui/screens/options.h"
 #include <gfx.h>
 #include <memory.h>
 #include <stdint.h>
@@ -15,11 +19,32 @@
 
 static light_gfx_t light_gfx = { 0 };
 
+/* Immutable root */
 static light_component_t* root_component;
 
+/* Mark the current component that is mounted as the root of the screen */
+static light_component_t* current_screen_root;
+
+#define SCREEN_HOME_IDX 0
+#define SCREEN_OPTIONS_IDX 1
+
+/* The different components that can be mounted as screenroot */
+static light_component_t* screens[] = {
+  [SCREEN_HOME_IDX] = nullptr,
+  [SCREEN_OPTIONS_IDX] = nullptr,
+};
+
+static char* screen_labels[] = {
+  [SCREEN_HOME_IDX] = "Home",
+  [SCREEN_OPTIONS_IDX] = "Options",
+};
+
+static const size_t screens_count = sizeof screens / sizeof screens[0];
+
 light_color_t WHITE = CLR(0xFFFFFFFF);
-light_color_t BLACK = CLR(0x00000000);
+light_color_t BLACK = CLR(0x000000FF);
 light_color_t GRAY = CLR(0x1e1e1eFF);
+light_color_t LIGHT_GRAY = CLR(0x303030FF);
 
 void gfx_load_font(struct light_font* font)
 {
@@ -78,10 +103,17 @@ gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
   if (x >= gfx->width || y >= gfx->height)
     return;
 
-  if (!gfx->back_fb)
+  if (!gfx->back_fb || !gfx->ctx->has_fw) {
+    /* Direct access */
+    *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
     return;
+  }
 
   *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+
+  /* When we are not drawing the cursor, we should look for any pixel updates */
+  if (!gfx_is_drawing_cursor(gfx))
+    update_cursor_pixel(gfx, x, y);
 }
 
 int 
@@ -104,7 +136,17 @@ gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
   if (!clr.alpha)
     return;
   
-  uint32_t transformed_clr = transform_light_clr(gfx, clr);
+  if (x >= gfx->width || y >= gfx->height)
+    return;
+
+  /*
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL pixel = { 
+    .Red = clr.red,
+    .Green = clr.green, 
+    .Blue = clr.blue,
+    .Reserved = clr.alpha
+  };
+  */
 
   gfx_draw_pixel_raw(gfx, x, y, transform_light_clr(gfx, clr));
 }
@@ -128,10 +170,7 @@ gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t cl
     for (uint8_t _x = 0; _x < gfx->current_font->width; _x++) {
       if (glyph_part & (1 << _x)) {
         gfx_draw_pixel(gfx, x + _x, y + _y, clr);
-      } else {
-        /* DEBUG */
-        gfx_draw_pixel(gfx, x + _x, y + _y, BLACK);
-      }
+      } 
     }
   }
 }
@@ -193,11 +232,19 @@ gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light
 int 
 gfx_switch_buffers(light_gfx_t* gfx)
 {
+  EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = gfx->priv;
+
+  if (!gfx->back_fb || !gfx->ctx->has_fw)
+    return -1;
+
+  gop->Blt(gop, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL*)gfx->back_fb, EfiBltBufferToVideo, NULL, NULL, NULL, NULL, gfx->width, gfx->height, NULL);
+  /*
   for (uint32_t i = 0; i < gfx->height; i++) {
     for (uint32_t j = 0; j < gfx->width; j++) {
       *(uint32_t volatile*)(gfx->phys_addr + j * gfx->bpp / 8 + i * gfx->stride * sizeof(uint32_t)) = gfx_get_pixel(gfx, j, i);
     }
   }
+  */
   return 0;
 }
 
@@ -279,9 +326,82 @@ gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t pos)
   }
 }
 
+/*
+ * GFX screen management
+ */
+
+static light_component_t*
+gfx_get_screen(uint32_t idx) 
+{
+  if (idx > screens_count)
+    return nullptr;
+
+  return screens[idx];
+}
+
+static light_component_t*
+gfx_get_current_screen()
+{
+  if (!current_screen_root)
+    return nullptr;
+
+  return current_screen_root->next;
+}
+
+static uint32_t 
+gfx_get_current_screen_type()
+{
+  light_component_t* current_screen = gfx_get_current_screen();
+
+  if (!current_screen)
+    return -1;
+
+  for (uint32_t i = 0; i < screens_count; i++) {
+    if (screens[i] == current_screen)
+      return i;
+  }
+
+  return -1;
+}
+
+static int
+gfx_do_screenswitch(light_gfx_t* gfx, light_component_t* new_screen)
+{
+  current_screen_root->next = new_screen;
+  gfx->flags |= GFX_FLAG_SHOULD_CHANGE_SCREEN;
+  return 0;
+}
+
+static int
+gfx_do_screen_update()
+{
+  light_component_t* root = root_component;
+
+  /* Make sure every component gets rendered on the screenswitch */
+  for (; root; root = root->next) {
+    root->should_update = true;
+  }
+
+  return 0;
+}
+
+static int 
+tab_btn_onclick(button_component_t* c)
+{
+  light_component_t* target;
+  uint32_t target_index = c->private;
+
+  /* Grab the target */
+  target = gfx_get_screen(target_index);
+
+  /* NOTE: we don't care if target is null, since that will be okay */
+  gfx_do_screenswitch(c->parent->gfx, target);
+  return 0;
+}
+
 gfx_frontend_result_t gfx_enter_frontend()
 {
-  light_ctx_t* ctx = get_light_ctx();
+  light_ctx_t* ctx = light_gfx.ctx;
   light_key_t key_buffer = { 0 };
   light_mousepos_t mouse_buffer = { 0 };
   gfx_frontend_result_t result;
@@ -309,33 +429,91 @@ gfx_frontend_result_t gfx_enter_frontend()
 
   /* 
    * Build the UI stack 
-   * NOTE: the component list gets drawn from top to 
-   * bottom, and when we create a new component, we automatically 
-   * add the component at the top. This means that when you
-   * want to add a background for example, you should add this 
-   * component last
+   * We first build how the root layout is going to look. Think about the 
+   * navigation bar, navigation buttons, any headers or footers, ect.
+   *
+   * after that we construct our screens, seperate from the root and then we
+   * connect the screen up to the bottom of the root link if we want to show that
+   * screen
+   *
+   * TODO: widgets -> interacable islands that are again their seperate things. we 
+   * can use these for popups and things, but these need to be initialized seperately
+   * aswell. Widgets are always relative to a certain component, and they are linked to
+   * the ->active_widget field in the component and from that they each link through the
+   * ->next field that every component has
    */
 
-  create_component(&root_component, COMPONENT_TYPE_LABEL, "Light Loader", 4, 4, 130, 24, NULL);
-
-  create_image(&root_component, nullptr, light_gfx.width - 128, 0, 0, 0, IMAGE_TYPE_INLINE, &default_logo);
-
+  /* Main background color */
   create_box(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, 0, true, GRAY);
 
-  while (true) {
+  /* Navigation bar */
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 24, 0, false, LIGHT_GRAY);
 
-    FOREACH_UI_COMPONENT(i, root_component) {
-      draw_component(i, key_buffer, mouse_buffer);
-    }
+  /* Navigation buttons */
+  for (uint32_t i = 0; i < screens_count; i++) {
+    const uint32_t btn_width = 80;
+    const uint32_t initial_offset = 4;
+
+    /* Add btn_width for every screen AND add the initial offset times the amount of buttons before us */
+    uint32_t x_offset = i * btn_width + initial_offset * (i + 1);
+
+    create_tab_button(&root_component, screen_labels[i], x_offset, 4, btn_width, 16, tab_btn_onclick, i);
+  }
+
+  /* Create a box for the home screen */
+  construct_homescreen(&screens[SCREEN_HOME_IDX]);
+
+  /* Create a box for the options screen */
+  construct_optionsscreen(&screens[SCREEN_OPTIONS_IDX]);
+
+  /*
+   * Create the screen link, which never gets rendered, but simply acts as a connector for the screens to 
+   * plug into if they want to get rendered
+   * NOTE: this should be the last component to be directly linked into the actual root 
+   */
+  current_screen_root = create_component(&root_component, COMPONENT_TYPE_LINK, nullptr, NULL, NULL, NULL, NULL, NULL);
+
+  /* Make sure we start at the homescreen */
+  gfx_do_screenswitch(&light_gfx, screens[SCREEN_HOME_IDX]);
+
+  /*
+   * Loop until something wants us to exit
+   */
+  while ((light_gfx.flags & GFX_FLAG_SHOULD_EXIT_FRONTEND) != GFX_FLAG_SHOULD_EXIT_FRONTEND) {
 
     ctx->f_get_mousepos(&mouse_buffer);
-
     ctx->f_get_keypress(&key_buffer);
+
+    FOREACH_UI_COMPONENT(i, root_component) {
+
+      /* Skip lmao */
+      if (!i->f_should_update || !i->f_ondraw)
+        continue;
+
+      i->key_buffer = &key_buffer;
+      i->mouse_buffer = &mouse_buffer;
+
+      update_component(i, key_buffer, mouse_buffer);
+
+      /* Update prompted a screen chance. Do it */
+      if ((light_gfx.flags & GFX_FLAG_SHOULD_CHANGE_SCREEN) == GFX_FLAG_SHOULD_CHANGE_SCREEN) {
+        gfx_do_screen_update();
+        break;
+      }
+
+      draw_component(i, key_buffer, mouse_buffer);
+    }
+    
+    /* keep this clear after a draw pass */
+    light_gfx.flags &= ~GFX_FLAG_SHOULD_CHANGE_SCREEN;
 
     draw_cursor(&light_gfx, mouse_buffer.x, mouse_buffer.y);
 
     gfx_switch_buffers(&light_gfx);
   }
+
+  /* Default option, just boot our kernel */
+  return BOOT_MULTIBOOT;
 }
 
 void 
@@ -354,5 +532,6 @@ init_light_gfx()
   memset(&light_gfx, 0, sizeof(light_gfx));
 
   light_gfx.current_font = &default_light_font;
+  light_gfx.ctx = get_light_ctx();
   root_component = nullptr;
 }

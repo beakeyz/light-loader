@@ -1,3 +1,4 @@
+#include "boot/boot.h"
 #include "ctx.h"
 #include "disk.h"
 #include "efidef.h"
@@ -37,6 +38,40 @@ efi_exit(EFI_STATUS exit)
 static int
 efi_exit_bs()
 {
+  light_ctx_t* ctx = get_light_ctx();
+  EFI_STATUS status;
+  size_t size = 0;
+  UINTN descriptor_size = 0;
+  UINTN key = 0;
+  uint32_t version = 0;
+  EFI_MEMORY_DESCRIPTOR* mmap = nullptr;
+
+  size_t descriptor_count;
+
+  /* Grab the mmap params */
+  status = BS->GetMemoryMap(&size, mmap, &key, &descriptor_size, &version);
+
+  size += EFI_PAGE_SIZE;
+
+  status = BS->AllocatePool(EfiLoaderData, size, (void**)&mmap);
+
+  if (status)
+    return -1;
+
+  status = BS->GetMemoryMap(&size, mmap, &key, &descriptor_size, &version);
+
+  if (status)
+    return -3;
+
+  status = BS->ExitBootServices(IH, key);
+
+  if (EFI_ERROR(status))
+    return -4;
+
+  asm volatile ("cld" ::: "memory");
+  asm volatile ("cli" ::: "memory");
+
+  ctx->has_fw = false;
   /* TODO */
   /* Create and cache final memmap */
   /* Exit BootServices */
@@ -64,9 +99,10 @@ efi_setup_ctx(light_ctx_t* ctx)
 
   memset(ctx, 0, sizeof(*ctx));
 
-  ctx->f_exit = efi_exit_bs;
+  ctx->f_fw_exit = efi_exit_bs;
   ctx->f_allocate = efi_allocate;
   ctx->f_deallcoate = efi_deallocate;
+  ctx->has_fw = true;
 
   /* For any EFI loader, use the generic gfx printf routine, to get formated pixels on the screen */
   ctx->f_printf = gfx_printf;
@@ -142,7 +178,7 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
     efi_exit(stat);
   }
 
-  /* We'll initialize 64 Mib of heap =D */
+  /* We'll initialize 64 Mib of cache-unfriendly heap =D */
   init_heap(heap_addr, INITIAL_HEAPSIZE);
 
   /*
@@ -169,12 +205,13 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   get_light_ctx()->f_gather_sys_info();
 
   /* Enter the frontend for user interaction */
-  result = gfx_enter_frontend();
+  //result = gfx_enter_frontend();
+  result = BOOT_MULTIBOOT;
 
   /* TODO */
   switch (result) {
     case BOOT_MULTIBOOT:
-      break;
+      boot_context_configuration(get_light_ctx());
     default:
       break;
   }

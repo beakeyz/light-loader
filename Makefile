@@ -13,6 +13,7 @@ endef
 $(eval $(call DEFAULT_VAR,CC,x86_64-pc-lightos-gcc))
 $(eval $(call DEFAULT_VAR,LD,ld))
 $(eval $(call DEFAULT_VAR,OBJCOPY,objcopy))
+$(eval $(call DEFAULT_VAR,ASM_COMP,nasm))
 
 # efi, bios, ect.
 FW_TYPE ?= efi
@@ -90,8 +91,13 @@ $(OUT)/%.o: %.S
 	@$(DIRECTORY_GUARD)
 	@$(CC) $(CFLAGS) $(INTERNAL_CFLAGS) -c $< -o $@
 
+$(OUT)/%.o: %.asm
+	@echo -e Building: $@
+	@$(DIRECTORY_GUARD)
+	@$(ASM_COMP) $< -o $@ -f elf64
+
 .PHONY: build 
-build: $(C_OBJ) $(S_OBJ) ## Build the objects
+build: $(C_OBJ) $(S_OBJ) $(ASM_OBJ) ## Build the objects
 	@echo -e Linking...
 	@mkdir -p $(BIN_OUT)
 	@$(LD) $^ $(INTERNAL_LDFLAGS) -o $(BIN_OUT)/$(OUT_ELF)

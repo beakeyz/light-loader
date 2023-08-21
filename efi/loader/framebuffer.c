@@ -6,6 +6,7 @@
 #include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
+#include <memory.h>
 #include <framebuffer.h>
 
 EFI_GUID gEfiGraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -123,12 +124,21 @@ init_framebuffer()
   gfx->back_fb_pages = EFI_SIZE_TO_PAGES(gfx->height * gfx->width * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
 
   /* Allocate a backbuffer in high memory */
-  status = BS->AllocatePages(AllocateAnyPages, EfiLoaderData, gfx->back_fb_pages, (EFI_PHYSICAL_ADDRESS*)&gfx->back_fb);
+  status = BS->AllocatePages(AllocateMaxAddress, EfiLoaderData, gfx->back_fb_pages, (EFI_PHYSICAL_ADDRESS*)&gfx->back_fb);
 
   if (status != EFI_SUCCESS) {
-    gfx->back_fb = NULL;
-    gfx->back_fb_pages = NULL;
+
+    status = BS->AllocatePages(AllocateAnyPages, EfiLoaderData, gfx->back_fb_pages, (EFI_PHYSICAL_ADDRESS*)&gfx->back_fb);
+
+    if (status != EFI_SUCCESS) {
+      gfx->back_fb = NULL;
+      gfx->back_fb_pages = NULL;
+    }
   }
+
+  /* No trailing pixels =) */
+  if (gfx->back_fb)
+    memset((void*)gfx->back_fb, 0, gfx->back_fb_pages * EFI_PAGE_SIZE);
 
   /* Make sure to release the gfx again */
 }

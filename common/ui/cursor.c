@@ -13,7 +13,7 @@
 light_image_t* cursor;
 bool has_cache;
 size_t backbuffer_size;
-uint32_t* cursor_backbuffer;
+uint32_t* cursor_backbuffer = nullptr;
 uint32_t old_x, old_y;
 
 light_image_t*
@@ -43,8 +43,23 @@ init_cursor()
 }
 
 void 
+update_cursor_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
+{
+  if (!cursor_backbuffer)
+    return;
+
+  /* If this pixel is contained in the buffer */
+  if (x >= old_x && x < old_x + DEFAULT_CURSOR_WIDTH && y >= old_y && y < old_y + DEFAULT_CURSOR_HEIGHT) {
+    cursor_backbuffer[(y - old_y) * DEFAULT_CURSOR_WIDTH + (x - old_x)] = gfx_get_pixel(gfx, x, y);
+  }
+}
+
+void 
 draw_cursor(light_gfx_t* gfx, uint32_t x, uint32_t y)
 {
+  /* We're drawing the cursor */
+  gfx_set_drawing_cursor(gfx);
+
   uint64_t cache_idx = 0;
 
   if (!has_cache)
@@ -74,4 +89,7 @@ do_redraw:
 
   old_x = x;
   old_y = y;
+  
+  /* We're finished drawing the cursor */
+  gfx_clear_drawing_cursor(gfx);
 }

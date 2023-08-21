@@ -60,11 +60,11 @@ get_mouse_delta(light_mousepos_t pos, int* dx, int* dy)
 void 
 limit_mousepos(light_mousepos_t* pos)
 {
-  if (pos->x > _x_limit) pos->x = _x_limit;
   if (pos->x < 0) pos->x = 0;
+  else if (pos->x > _x_limit) pos->x = _x_limit;
 
-  if (pos->y > _y_limit) pos->y = _y_limit;
   if (pos->y < 0) pos->y = 0;
+  else if (pos->y > _y_limit) pos->y = _y_limit;
 }
 
 void 

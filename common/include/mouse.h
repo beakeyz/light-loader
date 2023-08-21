@@ -25,4 +25,14 @@ void limit_mousepos(light_mousepos_t* pos);
 void set_previous_mousepos(light_mousepos_t mousepos);
 void get_previous_mousepos(light_mousepos_t* pos);
 
+static inline bool is_lmb_clicked(light_mousepos_t mouse)
+{
+  return ((mouse.btn_flags & MOUSE_LEFTBTN) == MOUSE_LEFTBTN);
+}
+
+static inline bool is_rmb_clicked(light_mousepos_t mouse)
+{
+  return ((mouse.btn_flags & MOUSE_RIGHTBTN) == MOUSE_RIGHTBTN);
+}
+
 #endif // !__LIGHTLOADER_MOUSE__

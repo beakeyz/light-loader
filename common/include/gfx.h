@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 struct light_font;
+struct light_ctx;
 
 /*
  * Simple union to generefy the way to represent colors in a framebuffer
@@ -29,6 +30,7 @@ typedef union light_color {
 extern light_color_t WHITE;
 extern light_color_t BLACK;
 extern light_color_t GRAY;
+extern light_color_t LIGHT_GRAY;
 
 /* TODO: implement color blending opperations to make use of the alpha chanel */
 int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);
@@ -38,6 +40,10 @@ int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);
 #define GFX_TYPE_UGA (0x0002) /* TODO: should we support UGA? */
 #define GFX_TYPE_VEGA (0x0004) /* Should never be seen in these lands */
 
+#define GFX_FLAG_DRAWING_CURSOR (0x0001)
+#define GFX_FLAG_SHOULD_CHANGE_SCREEN (0x0002)
+#define GFX_FLAG_SHOULD_EXIT_FRONTEND (0x0004)
+
 typedef struct light_gfx {
   uintptr_t phys_addr;
   uintptr_t size;
@@ -45,10 +51,12 @@ typedef struct light_gfx {
   uint32_t red_mask, green_mask, blue_mask, alpha_mask;
   uint8_t bpp;
   uint8_t type;
+  uint16_t flags;
 
   void* priv;
 
   struct light_font* current_font;
+  struct light_ctx* ctx;
 
   /* Yay, doublebuffering 0.0 */
   uintptr_t back_fb;
@@ -77,6 +85,21 @@ int gfx_putchar(char c);
 int gfx_switch_buffers(light_gfx_t* gfx);
 
 void get_light_gfx(light_gfx_t** gfx);
+
+static inline bool gfx_is_drawing_cursor(light_gfx_t* gfx)
+{
+  return ((gfx->flags & GFX_FLAG_DRAWING_CURSOR) == GFX_FLAG_DRAWING_CURSOR);
+}
+
+static inline void gfx_set_drawing_cursor(light_gfx_t* gfx)
+{
+  gfx->flags |= GFX_FLAG_DRAWING_CURSOR;
+}
+
+static inline void gfx_clear_drawing_cursor(light_gfx_t* gfx)
+{
+  gfx->flags &= ~GFX_FLAG_DRAWING_CURSOR;
+}
 
 typedef enum gfx_logo_pos {
   LOGO_POS_NONE = 0,

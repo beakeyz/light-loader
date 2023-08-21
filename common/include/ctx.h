@@ -14,6 +14,7 @@
 #include "rsdp.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <boot/boot.h>
 
 struct light_mmap_entry;
 
@@ -26,12 +27,18 @@ typedef struct light_ctx {
   /* Private platform specific stuff */
   void* private;
 
+  /* Do we still have firmware support? (Only really applicable for EFI) */
+  bool has_fw;
+
   /* Put a reference to the memory map here */
   struct light_mmap_entry* mmap;
   size_t mmap_entries;
 
   /* Either the rsdp or the xsdp */
   system_ptrs_t sys_ptrs;
+
+  /* How should we boot */
+  light_boot_config_t light_bcfg;
 
   /*
    * Put a reference to the disk structure that we where loaded 
@@ -40,7 +47,7 @@ typedef struct light_ctx {
   disk_dev_t* disk_handle;
   
   /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
-  int (*f_exit)();
+  int (*f_fw_exit)();
 
   /* Mmap, syspointers, ect. */
   int (*f_gather_sys_info)();
