@@ -186,12 +186,10 @@ prepare_multiboot_buffer(light_relocation_t** relocations)
   if (!multiboot_buffer)
     return NULL;
 
-  /*
   multiboot_reloc_addr = MULTIBOOT_DEFAULT_LOAD_BASE;
 
   if (relocation_does_overlap(relocations, multiboot_reloc_addr,  MULTIBOOT_BUFF_SIZE))
-  */
-  multiboot_reloc_addr = highest_relocation_addr(*relocations);
+    multiboot_reloc_addr = highest_relocation_addr(*relocations);
 
   if (!create_relocation(relocations, (uintptr_t)multiboot_buffer, multiboot_reloc_addr, MULTIBOOT_BUFF_SIZE))
     return NULL;

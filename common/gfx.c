@@ -461,10 +461,10 @@ gfx_frontend_result_t gfx_enter_frontend()
   }
 
   /* Create a box for the home screen */
-  construct_homescreen(&screens[SCREEN_HOME_IDX]);
+  construct_homescreen(&screens[SCREEN_HOME_IDX], &light_gfx);
 
   /* Create a box for the options screen */
-  construct_optionsscreen(&screens[SCREEN_OPTIONS_IDX]);
+  construct_optionsscreen(&screens[SCREEN_OPTIONS_IDX], &light_gfx);
 
   /*
    * Create the screen link, which never gets rendered, but simply acts as a connector for the screens to 
