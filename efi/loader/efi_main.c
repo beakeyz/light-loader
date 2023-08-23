@@ -97,7 +97,7 @@ efi_setup_ctx(light_ctx_t* ctx)
   //static EFI_GUID file_guid = ;
   EFI_STATUS status;
 
-  memset(ctx, 0, sizeof(*ctx));
+  memset(ctx, 0, sizeof(light_ctx_t));
 
   ctx->f_fw_exit = efi_exit_bs;
   ctx->f_allocate = efi_allocate;
@@ -205,8 +205,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   get_light_ctx()->f_gather_sys_info();
 
   /* Enter the frontend for user interaction */
-  result = gfx_enter_frontend();
-  //result = BOOT_MULTIBOOT;
+  //result = gfx_enter_frontend();
+  result = BOOT_MULTIBOOT;
 
   /* TODO */
   switch (result) {

@@ -41,8 +41,9 @@ int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);
 #define GFX_TYPE_VEGA (0x0004) /* Should never be seen in these lands */
 
 #define GFX_FLAG_DRAWING_CURSOR (0x0001)
-#define GFX_FLAG_SHOULD_CHANGE_SCREEN (0x0002)
-#define GFX_FLAG_SHOULD_EXIT_FRONTEND (0x0004)
+#define GFX_FLAG_SHOULD_DRAW_CURSOR (0x0002)
+#define GFX_FLAG_SHOULD_CHANGE_SCREEN (0x0004)
+#define GFX_FLAG_SHOULD_EXIT_FRONTEND (0x0008)
 
 typedef struct light_gfx {
   uintptr_t phys_addr;
@@ -69,6 +70,8 @@ void gfx_load_font(struct light_font* font);
 uint32_t gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y);
 
 light_color_t gfx_transform_pixel(light_gfx_t* gfx, uint32_t clr);
+
+void gfx_clear_screen(light_gfx_t* gfx);
 
 void gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr);
 void gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr);

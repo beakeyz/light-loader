@@ -23,7 +23,7 @@ load_cursor(char* path)
 }
 
 void 
-init_cursor()
+init_cursor(light_gfx_t* gfx)
 {
   cursor = load_cursor(CURSOR_PATH);
 
@@ -40,6 +40,8 @@ init_cursor()
 
   has_cache = false;
   old_x = old_y = NULL;
+
+  gfx->flags |= GFX_FLAG_SHOULD_DRAW_CURSOR;
 }
 
 void 

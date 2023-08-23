@@ -112,7 +112,7 @@ gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
   *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
 
   /* When we are not drawing the cursor, we should look for any pixel updates */
-  if (!gfx_is_drawing_cursor(gfx))
+  if (!gfx_is_drawing_cursor(gfx) && (gfx->flags & GFX_FLAG_SHOULD_DRAW_CURSOR) == GFX_FLAG_SHOULD_DRAW_CURSOR)
     update_cursor_pixel(gfx, x, y);
 }
 
@@ -190,6 +190,19 @@ gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t 
     x_idx += gfx->current_font->width;
     c++;
   }
+}
+
+void
+gfx_clear_screen(light_gfx_t* gfx)
+{
+  for (uint32_t i = 0; i < gfx->height; i++) {
+    for (uint32_t j = 0; j < gfx->width; j++) {
+      gfx_draw_pixel_raw(gfx, j, i, 0x00);
+    }
+  }
+
+  /* Just in case */
+  gfx_switch_buffers(gfx);
 }
 
 void 
@@ -425,7 +438,7 @@ gfx_frontend_result_t gfx_enter_frontend()
   init_keyboard();
 
   /* Initialize the cursor */
-  init_cursor();
+  init_cursor(&light_gfx);
 
   /* 
    * Build the UI stack 
@@ -511,6 +524,9 @@ gfx_frontend_result_t gfx_enter_frontend()
 
     gfx_switch_buffers(&light_gfx);
   }
+
+  /* Make sure to not update the cursor stuff when we are not in the frontend */
+  light_gfx.flags &= ~GFX_FLAG_SHOULD_DRAW_CURSOR;
 
   /* Default option, just boot our kernel */
   return BOOT_MULTIBOOT;

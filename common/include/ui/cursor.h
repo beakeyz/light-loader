@@ -11,7 +11,7 @@
  * different stages, like loading, clickable, ect.
  */
 
-void init_cursor();
+void init_cursor(light_gfx_t* gfx);
 
 void draw_cursor(light_gfx_t* gfx, uint32_t x, uint32_t y);
 void update_cursor_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y);

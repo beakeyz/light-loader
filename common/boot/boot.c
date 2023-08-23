@@ -8,8 +8,10 @@
 #include "gfx.h"
 #include "heap.h"
 #include "relocations.h"
+#include "rsdp.h"
 #include <memory.h>
 #include <boot/boot.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <elf.h>
 
@@ -110,6 +112,17 @@ get_multiboot_memorymap(size_t* entry_count, light_ctx_t* ctx)
     light_mmap_entry_t* current = &light_mmap[i];
     uintptr_t j = i + 1;
 
+    while (j < ctx->mmap_entries) {
+      light_mmap_entry_t* next = &light_mmap[j];
+
+      if (next->type != current->type)
+        break;
+
+      current->size += next->size;
+
+      j++;
+    }
+
     ret[i].addr = current->paddr;
     ret[i].len = current->size;
     ret[i].type = get_multiboot_mmap_type(current->type);
@@ -162,7 +175,7 @@ relocate_bootstub()
 }
 
 #define MULTIBOOT_DEFAULT_LOAD_BASE 0x10000
-#define MULTIBOOT_BUFF_SIZE 0x1000
+#define MULTIBOOT_BUFF_SIZE 0x2000
 
 uintptr_t multiboot_buffer;
 uintptr_t current_multiboot_tag;
@@ -186,10 +199,13 @@ prepare_multiboot_buffer(light_relocation_t** relocations)
   if (!multiboot_buffer)
     return NULL;
 
+  /* FIXME: this causes all sorts of problems */
+  /*
   multiboot_reloc_addr = MULTIBOOT_DEFAULT_LOAD_BASE;
 
   if (relocation_does_overlap(relocations, multiboot_reloc_addr,  MULTIBOOT_BUFF_SIZE))
-    multiboot_reloc_addr = highest_relocation_addr(*relocations);
+    */
+  multiboot_reloc_addr = highest_relocation_addr(*relocations);
 
   if (!create_relocation(relocations, (uintptr_t)multiboot_buffer, multiboot_reloc_addr, MULTIBOOT_BUFF_SIZE))
     return NULL;
@@ -229,6 +245,7 @@ boot_context_configuration(light_ctx_t* ctx)
   struct multiboot_header* mb_header = nullptr;
   Elf64_Ehdr* elf_header = nullptr;
   light_boot_config_t* config = &ctx->light_bcfg;
+  light_gfx_t* gfx = NULL;
 
   uintptr_t new_bootstub_loc = NULL;
   uintptr_t new_multiboot_loc = NULL;
@@ -313,6 +330,9 @@ boot_context_configuration(light_ctx_t* ctx)
   if (!new_ramdisk_loc)
     panic("Failed to relocate the ramdisk!");
 
+  /* Get the GFX in preperation for multiboot stuff */
+  get_light_gfx(&gfx);
+
   /* With the first tag we will identify ourselves */
   const char* loader_name = "__LightLoader__";
   struct multiboot_tag_string* name_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_BOOT_LOADER_NAME, sizeof(struct multiboot_tag_string) + strlen(loader_name));
@@ -322,9 +342,6 @@ boot_context_configuration(light_ctx_t* ctx)
   /* Create a framebuffer tag if the kernel wants one */
   if (get_multiboot_header_tag(mb_header, MULTIBOOT_HEADER_TAG_FRAMEBUFFER)) {
     struct multiboot_tag_framebuffer* fb_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_FRAMEBUFFER, sizeof(struct multiboot_tag_framebuffer));
-
-    light_gfx_t* gfx;
-    get_light_gfx(&gfx);
 
     fb_tag->common.framebuffer_addr = gfx->phys_addr;
     fb_tag->common.framebuffer_width = gfx->width;
@@ -345,13 +362,15 @@ boot_context_configuration(light_ctx_t* ctx)
 
   /* Add the system pointers */
   if (ctx->sys_ptrs.xsdp) {
-    struct multiboot_tag_new_acpi* new_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_NEW, sizeof(struct multiboot_tag_new_acpi) + sizeof(void*));
+    struct multiboot_tag_new_acpi* new_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_NEW, sizeof(struct multiboot_tag_new_acpi) + sizeof(rsdp_t));
 
-    memcpy(new_acpi->rsdp, ctx->sys_ptrs.xsdp, sizeof(void*));
-  } else if (ctx->sys_ptrs.rsdp) {
-    struct multiboot_tag_old_acpi* old_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_OLD, sizeof(struct multiboot_tag_old_acpi) + sizeof(void*));
+    memcpy(new_acpi->rsdp, ctx->sys_ptrs.xsdp, sizeof(rsdp_t));
+  } 
 
-    memcpy(old_acpi->rsdp, ctx->sys_ptrs.xsdp, sizeof(void*));
+  if (ctx->sys_ptrs.rsdp) {
+    struct multiboot_tag_old_acpi* old_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_OLD, sizeof(struct multiboot_tag_old_acpi) + 20);
+
+    memcpy(old_acpi->rsdp, ctx->sys_ptrs.rsdp, 20);
   }
 
   error = ctx->f_fw_exit();
@@ -376,6 +395,9 @@ boot_context_configuration(light_ctx_t* ctx)
   }
 
   struct multiboot_tag* end_tag = add_multiboot_tag(0, sizeof(struct multiboot_tag));
+
+  /* Clear the framebuffer right before we jump to the kernel */
+  gfx_clear_screen(gfx);
 
   multiboot2_boot_entry(
       (uint32_t)kernel_entry,
