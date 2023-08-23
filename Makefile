@@ -150,6 +150,7 @@ else
 	@stat $(INSTALL_DEV)
 	sudo parted $(INSTALL_DEV) mklabel gpt
 	sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
+	sudo parted $(INSTALL_DEV) set 1 hidden on
 	sudo parted $(INSTALL_DEV) mkpart Primary 10M 100%
 	sudo parted $(INSTALL_DEV) set 2 boot on
 	sudo parted $(INSTALL_DEV) set 2 hidden on
@@ -183,4 +184,4 @@ clean: ## Remove any object files or binaries from the project
 
 .PHONY: debug
 debug: ## Run lightloader in Qemu
-	@$(EMU) -m 512M -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio
+	@$(EMU) -m 1G -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio

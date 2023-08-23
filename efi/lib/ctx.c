@@ -87,16 +87,16 @@ static uint32_t get_efi_memory_type(UINT32 weird_type) {
 
   switch (weird_type) {
     case EfiReservedMemoryType:
-    case EfiRuntimeServicesCode:
-    case EfiRuntimeServicesData:
     case EfiUnusableMemory:
     case EfiMemoryMappedIO:
     case EfiMemoryMappedIOPortSpace:
     case EfiPalCode:
-    case EfiLoaderCode:
-    case EfiLoaderData:
     default:
       return MEMMAP_RESERVED;
+    case EfiRuntimeServicesCode:
+    case EfiRuntimeServicesData:
+    case EfiLoaderCode:
+    case EfiLoaderData:
     case EfiBootServicesCode:
     case EfiBootServicesData:
       return MEMMAP_EFI_RECLAIMABLE;
