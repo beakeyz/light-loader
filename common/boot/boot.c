@@ -16,7 +16,7 @@
 #include <elf.h>
 
 /* TODO: rename the kernelfile to fit the kernel name */
-const char* default_kernel_path = "kernel.elf";
+const char* default_kernel_path = "aniva.elf";
 const char* default_ramdisk_path = "rdisk.igz";
 
 extern __attribute__((noreturn)) void multiboot2_boot_entry(uint32_t entry, uint32_t ranges, uint32_t ranges_count, uint32_t new_stub_location, uint32_t multiboot_addr, uint32_t multiboot_magic);

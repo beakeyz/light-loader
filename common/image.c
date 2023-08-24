@@ -3,6 +3,7 @@
 #include "heap.h"
 #include <image.h>
 #include <stdio.h>
+#include <memory.h>
 
 light_image_t default_logo = {
    .width = 128,
@@ -1755,6 +1756,7 @@ light_image_t*
 load_bmp_image(char* path)
 {
   struct bmp_header* fbuffer;
+  size_t image_s_size;
   light_image_t* image;
   light_file_t* file = fopen(path);
 
@@ -1770,7 +1772,13 @@ load_bmp_image(char* path)
     goto dealloc_and_fail;
   }
 
-  image = heap_allocate(sizeof(light_image_t) + (fbuffer->bpp / 8) * fbuffer->width * fbuffer->height);
+  image_s_size = sizeof(light_image_t) + (fbuffer->bpp / 8) * fbuffer->width * fbuffer->height;
+  image = heap_allocate(image_s_size);
+
+  if (!image)
+    goto dealloc_and_fail;
+
+  memset(image, 0, image_s_size);
 
   image->height = fbuffer->height;
   image->width = fbuffer->width;

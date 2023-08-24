@@ -17,7 +17,10 @@
 EFI_GUID dev_path_guid = DEVICE_PATH_PROTOCOL;
 EFI_GUID input_guid = SIMPLE_TEXT_INPUT_PROTOCOL;
 EFI_GUID pointer_guid = EFI_SIMPLE_POINTER_PROTOCOL_GUID;
+EFI_GUID abs_pointer_guid = EFI_ABSOLUTE_POINTER_PROTOCOL_GUID;
 EFI_SIMPLE_POINTER_PROTOCOL* pointer_protocol;
+EFI_ABSOLUTE_POINTER_PROTOCOL* abs_pointer_protocol;
+EFI_SIMPLE_TEXT_IN_PROTOCOL* text_in_protocol;
 
 void
 efi_init_mouse()
@@ -32,7 +35,33 @@ efi_init_mouse()
 void
 efi_init_keyboard()
 {
+  int error;
+  size_t handle_count;
+  size_t size;
+  EFI_HANDLE* handles = NULL;
 
+  handle_count = locate_handle_with_buffer(ByProtocol, input_guid, &size, &handles);
+
+  if (!handle_count)
+    return;
+
+  for (uintptr_t i = 0; i < handle_count; i++) {
+    EFI_HANDLE handle = handles[i];
+
+    /* Try to open the protocol on the handle */
+    error = open_protocol(handle, &input_guid, (void**)&text_in_protocol);
+
+    if (error || !text_in_protocol)
+      continue;
+
+    /* If we can reset the device, we are golden */
+    error = text_in_protocol->Reset(text_in_protocol, true);
+
+    if (error == EFI_SUCCESS) {
+      heap_free(handles);
+      break;
+    }
+  }
 }
 
 bool
@@ -42,6 +71,9 @@ efi_has_mouse()
   size_t handle_count;
   size_t size;
   EFI_HANDLE* handles = NULL;
+
+  pointer_protocol = NULL;
+  abs_pointer_protocol = NULL;
 
   handle_count = locate_handle_with_buffer(ByProtocol, pointer_guid, &size, &handles);
 
@@ -60,10 +92,36 @@ efi_has_mouse()
     /* If we can reset the device, we are golden */
     error = pointer_protocol->Reset(pointer_protocol, true);
 
-    if (error == EFI_SUCCESS)
+    if (error == EFI_SUCCESS) {
       return true;
+    }
   }
 
+  heap_free(handles);
+  handles = NULL;
+
+  handle_count = locate_handle_with_buffer(ByProtocol, abs_pointer_guid, &size, &handles);
+
+  if (!handle_count)
+    return false;
+
+  for (uintptr_t i = 0; i < handle_count; i++) {
+    EFI_HANDLE handle = handles[i];
+
+    /* Try to open the protocol on the handle */
+    error = open_protocol(handle, &abs_pointer_guid, (void**)&abs_pointer_protocol);
+
+    if (error || !abs_pointer_protocol)
+      continue;
+
+    /* If we can reset the device, we are golden */
+    error = abs_pointer_protocol->Reset(abs_pointer_protocol, true);
+
+    if (error == EFI_SUCCESS) {
+      return true;
+    }
+  }
+  
   return false;
 }
 
@@ -158,7 +216,35 @@ out:
 int
 efi_get_keypress(light_key_t* key)
 {
-  return 0;
+  EFI_STATUS status;
+  EFI_INPUT_KEY key_output;
+
+  if (!key || !text_in_protocol)
+    return -1;
+
+  memset(key, 0, sizeof(light_key_t));
+
+  status = text_in_protocol->ReadKeyStroke(text_in_protocol, &key_output);
+
+  switch (status) {
+    case EFI_NOT_READY:
+      {
+        return 0;
+      }
+    case EFI_SUCCESS:
+      {
+        key->typed_char = key_output.UnicodeChar;
+        key->scancode = key_output.ScanCode;
+        key->pad = 0;
+        return 0;
+      }
+    case EFI_DEVICE_ERROR:
+      return -1;
+    default:
+      break;
+  }
+
+  return -2;
 }
 
 int
@@ -166,16 +252,61 @@ efi_get_mousepos(light_mousepos_t* pos)
 {
   EFI_STATUS status;
   EFI_SIMPLE_POINTER_STATE state;
+  EFI_ABSOLUTE_POINTER_STATE abs_state;
   light_mousepos_t previous;
 
-  if (!pos)
+  if (!pos || (!pointer_protocol && !abs_pointer_protocol))
     return -1;
 
   memset(pos, 0, sizeof(*pos));
 
-  status = pointer_protocol->GetState(pointer_protocol, &state);
-
   get_previous_mousepos(&previous);
+
+  if (!pointer_protocol) {
+
+    if (abs_pointer_protocol) {
+
+      status = abs_pointer_protocol->GetState(abs_pointer_protocol, &abs_state);
+
+      switch (status) {
+        case EFI_NOT_READY:
+          {
+            *pos = previous;
+            return 0;
+          }
+        case EFI_SUCCESS:
+          {
+
+            /*
+             * The absolute pointer protocol returns the absolute position of the pointer device (probably a trackpad on a laptop or sm)
+             * and we want to transform this to the curret position of the cursor on the screen. We do this by setting the new position 
+             * to the previous position and the new position of the trackpad together
+             */
+
+            /* Yikes, idk man */
+            pos->x = abs_state.CurrentX;
+            pos->y = abs_state.CurrentY;
+
+            if (abs_state.ActiveButtons & 1) pos->btn_flags |= MOUSE_LEFTBTN;
+            else pos->btn_flags &= ~MOUSE_LEFTBTN;
+
+            limit_mousepos(pos);
+
+            set_previous_mousepos(*pos);
+            break;
+          }
+        case EFI_DEVICE_ERROR:
+          {
+            abs_pointer_protocol->Reset(abs_pointer_protocol, false);
+          }
+      }
+      return 0;
+    }
+
+    return -1;
+  }
+
+  status = pointer_protocol->GetState(pointer_protocol, &state);
 
   switch (status) {
     case EFI_NOT_READY:
@@ -205,6 +336,7 @@ efi_get_mousepos(light_mousepos_t* pos)
         return 0;
       }
     default:
+      pointer_protocol->Reset(pointer_protocol, false);
       break;
   }
 

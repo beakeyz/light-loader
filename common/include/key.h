@@ -5,6 +5,7 @@
 
 typedef struct light_key {
   char typed_char;
+  char pad;
   uint16_t scancode;
 } light_key_t;
 

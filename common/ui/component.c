@@ -167,7 +167,7 @@ default_box_draw(light_component_t* comp)
 int
 default_label_draw(light_component_t* comp)
 {
-  gfx_draw_rect(comp->gfx, comp->x, comp->y, comp->width, comp->height, GRAY);
+  //gfx_draw_rect(comp->gfx, comp->x, comp->y, comp->width, comp->height, GRAY);
 
   uint32_t label_draw_x = (comp->width >> 1) - (lf_get_str_width(comp->gfx->current_font, comp->label) >> 1);
   uint32_t label_draw_y = (comp->height >> 1) - (comp->gfx->current_font->height >> 1);

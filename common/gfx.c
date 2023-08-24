@@ -112,7 +112,7 @@ gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
   *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
 
   /* When we are not drawing the cursor, we should look for any pixel updates */
-  if (!gfx_is_drawing_cursor(gfx) && (gfx->flags & GFX_FLAG_SHOULD_DRAW_CURSOR) == GFX_FLAG_SHOULD_DRAW_CURSOR)
+  if (!gfx_is_drawing_cursor(gfx))
     update_cursor_pixel(gfx, x, y);
 }
 
@@ -420,6 +420,8 @@ gfx_frontend_result_t gfx_enter_frontend()
   gfx_frontend_result_t result;
   uint32_t prev_mousepx;
 
+  gfx_clear_screen(&light_gfx);
+
   if (!ctx->f_has_keyboard()) {
     printf("Could not locate a keyboard! Plug in a keyboard and restart the PC.");
     return REBOOT;
@@ -433,9 +435,9 @@ gfx_frontend_result_t gfx_enter_frontend()
     return REBOOT;
   }
 
-  init_mouse();
-
   init_keyboard();
+
+  init_mouse();
 
   /* Initialize the cursor */
   init_cursor(&light_gfx);
@@ -494,8 +496,8 @@ gfx_frontend_result_t gfx_enter_frontend()
    */
   while ((light_gfx.flags & GFX_FLAG_SHOULD_EXIT_FRONTEND) != GFX_FLAG_SHOULD_EXIT_FRONTEND) {
 
-    ctx->f_get_mousepos(&mouse_buffer);
     ctx->f_get_keypress(&key_buffer);
+    ctx->f_get_mousepos(&mouse_buffer);
 
     FOREACH_UI_COMPONENT(i, root_component) {
 

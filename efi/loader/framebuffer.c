@@ -14,6 +14,53 @@ static EFI_HANDLE gop_handle;
 static EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
 static EFI_GUID conout_guid = EFI_CONSOLE_OUT_DEVICE_GUID;
 
+#define RES_480P 0
+#define RES_720P 1
+#define RES_1080P 2
+#define RES_4K 3
+
+/*
+ * named_resolution struct from FreeBSD at
+ * https://github.com/freebsd/freebsd-src/blob/main/stand/efi/loader/framebuffer.c
+ */
+static const struct named_resolution {
+	const char *name;
+	const char *alias;
+	uint32_t width;
+	uint32_t height;
+} resolutions[] = {
+	{
+		.name = "480p",
+		.width = 640,
+		.height = 480,
+	},
+	{
+		.name = "720p",
+		.width = 1280,
+		.height = 720,
+	},
+	{
+		.name = "1080p",
+		.width = 1920,
+		.height = 1080,
+	},
+	{
+		.name = "2160p",
+		.alias = "4k",
+		.width = 3840,
+		.height = 2160,
+	},
+};
+
+/*
+ * The 'optimal resolution' is just a arbitrary resolution that I choose, which
+ * will give me support for high performance graphics, I hope =)))
+ * NOTE: due to our probing logic, a maximum of 3 resolutions is the max!
+ */
+const struct named_resolution* optimal_resolution;
+const struct named_resolution* optimal_resolution_2;
+const struct named_resolution* optimal_resolution_3;
+
 /*
  * Find the active framebuffer on the system
  */
@@ -31,6 +78,11 @@ init_framebuffer()
   /* No GOP handles??? wtf */
   if (!handle_count)
     return;
+
+  /* We like 720p the best =) */
+  optimal_resolution = &resolutions[RES_720P];
+  optimal_resolution_2 = &resolutions[RES_480P];
+  optimal_resolution_3 = &resolutions[RES_1080P];
 
   gop_handle = nullptr;
 
@@ -68,11 +120,52 @@ init_framebuffer()
   gfx->priv = gop;
 
   /* Get EDID */
+
   EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* mode = gop->Mode;
+
+  EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* c_info;
+  UINTN info_sz;
+
+  /* Resize to the optimal resolution if we can */
+  uint32_t best_mode = mode->Mode;
+
+  for (uint32_t current_mode = 0; current_mode < gop->Mode->MaxMode; current_mode++) {
+    status = gop->QueryMode(gop, current_mode, &info_sz, &c_info);
+
+    if (c_info->VerticalResolution == optimal_resolution->height && 
+        c_info->HorizontalResolution == optimal_resolution->width) {
+      best_mode = current_mode;
+      break;
+    } else if (c_info->VerticalResolution == optimal_resolution_2->height && c_info->HorizontalResolution == optimal_resolution_2->width){
+      best_mode = current_mode;
+      /* If the third best mode is present AND we have not yet found a better mode, switch */
+    } else if (c_info->VerticalResolution == optimal_resolution_3->height && c_info->HorizontalResolution == optimal_resolution_3->width && best_mode == mode->Mode) {
+      best_mode = current_mode;
+    }
+  }
+
+  if (best_mode != mode->Mode) {
+    gop->SetMode(gop, best_mode);
+  } else {
+    /* We can try downsampeling, to get the resolution that is closest to our optimal one */
+
+    for (uint32_t current_mode = 0; current_mode < gop->Mode->MaxMode; current_mode++) {
+      status = gop->QueryMode(gop, current_mode, &info_sz, &c_info);
+
+      if (c_info->HorizontalResolution < mode->Info->HorizontalResolution && c_info->HorizontalResolution >= optimal_resolution->width) {
+        best_mode = current_mode;
+      }
+    }
+
+    /* Try to set mode again */
+    if (best_mode != mode->Mode) {
+      gop->SetMode(gop, best_mode);
+    }
+  }
+
   EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info = mode->Info;
   EFI_GRAPHICS_PIXEL_FORMAT format = info->PixelFormat;
   EFI_PIXEL_BITMASK pinfo = info->PixelInformation;
-
 
   /* Get gfx framebuffer info */
   gfx->phys_addr = gop->Mode->FrameBufferBase;

@@ -65,8 +65,9 @@ OUT_ISO := lloader.iso
 BOOTRT_DIR=bootrt
 
 # We copy these files into the root of the project for now
-KERNEL_ELF_NAME=kernel.elf
+KERNEL_ELF_NAME=aniva.elf
 KERNEL_RAMDISK_NAME=anivaRamdisk.igz
+KERNEL_INTERNAL_RAMDISK_NAME=rdisk.igz
 
 SOURCE_DIRECTORIES := common efi
 INCLUDE_DIRECTORIES := common/include efi/include
@@ -132,7 +133,7 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
-	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
+	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 	sync
 	# Cleanup
@@ -164,7 +165,7 @@ else
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
-	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/rdisk.igz
+	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 	sync
 
