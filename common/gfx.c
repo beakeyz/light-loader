@@ -25,6 +25,8 @@ static light_component_t* root_component;
 /* Mark the current component that is mounted as the root of the screen */
 static light_component_t* current_screen_root;
 
+static light_component_t* current_selected_btn;
+
 #define SCREEN_HOME_IDX 0
 #define SCREEN_OPTIONS_IDX 1
 
@@ -381,7 +383,11 @@ static int
 gfx_do_screenswitch(light_gfx_t* gfx, light_component_t* new_screen)
 {
   current_screen_root->next = new_screen;
+
+  current_selected_btn = nullptr;
+
   gfx->flags |= GFX_FLAG_SHOULD_CHANGE_SCREEN;
+
   return 0;
 }
 
@@ -410,6 +416,27 @@ tab_btn_onclick(button_component_t* c)
   /* NOTE: we don't care if target is null, since that will be okay */
   gfx_do_screenswitch(c->parent->gfx, target);
   return 0;
+}
+
+static void
+get_next_btn(light_component_t** out)
+{
+  light_component_t* itt;
+
+  if (*out)
+    itt = (*out)->next;
+  else
+    itt = root_component;
+
+  while (itt) {
+
+    if (itt->type == COMPONENT_TYPE_BUTTON)
+      break;
+    
+    itt = itt->next;
+  }
+
+  *out = itt;
 }
 
 gfx_frontend_result_t gfx_enter_frontend()
@@ -498,6 +525,19 @@ gfx_frontend_result_t gfx_enter_frontend()
 
     ctx->f_get_keypress(&key_buffer);
     ctx->f_get_mousepos(&mouse_buffer);
+
+    /* Tab */
+    if (key_buffer.typed_char == 9) {
+      get_next_btn(&current_selected_btn);
+
+      if (current_selected_btn) {
+        set_previous_mousepos((light_mousepos_t) {
+          .x = current_selected_btn->x + 1,
+          .y = current_selected_btn->y + 1,
+          .btn_flags = 0
+        });
+      }
+    } 
 
     FOREACH_UI_COMPONENT(i, root_component) {
 

@@ -88,21 +88,21 @@ static multiboot_uint32_t get_multiboot_mmap_type(uint32_t light_loader_type) {
       return MULTIBOOT_MEMORY_NVS;
   }
 
-  return 0;
+  return MULTIBOOT_MEMORY_RESERVED;
 }
 
 static multiboot_memory_map_t*
 get_multiboot_memorymap(size_t* entry_count, light_ctx_t* ctx)
 {
   uintptr_t i = 0;
-  multiboot_memory_map_t* ret, *_ret;
+  multiboot_memory_map_t* ret;
   uintptr_t needed_address;
   light_mmap_entry_t* light_mmap;
 
   if (!entry_count)
     return nullptr;
 
-  *entry_count = NULL;
+  *entry_count = 0;
 
   light_mmap = ctx->mmap;
   needed_address = 0;
@@ -110,27 +110,74 @@ get_multiboot_memorymap(size_t* entry_count, light_ctx_t* ctx)
 
   while(i < ctx->mmap_entries) {
     light_mmap_entry_t* current = &light_mmap[i];
-    uintptr_t j = i + 1;
+    uint64_t j = 1;
 
-    while (j < ctx->mmap_entries) {
-      light_mmap_entry_t* next = &light_mmap[j];
+    if (!current->type)
+      goto skip;
 
-      if (next->type != current->type)
+    while (i + j < ctx->mmap_entries) {
+      light_mmap_entry_t* check = &light_mmap[i + j];
+
+      if (current->type != check->type)
         break;
 
-      current->size += next->size;
+      current->size += check->size;
 
       j++;
     }
 
-    ret[i].addr = current->paddr;
-    ret[i].len = current->size;
-    ret[i].type = get_multiboot_mmap_type(current->type);
-    ret[i].zero = 0;
+    ret[*entry_count].addr = current->paddr;
+    ret[*entry_count].len = current->size;
+    ret[*entry_count].type = get_multiboot_mmap_type(current->type);
+    ret[*entry_count].zero = 0;
 
     (*entry_count)++;
 
-    i = j;
+skip:
+    i += j;
+  }
+
+  return ret;
+}
+
+static multiboot_memory_map_t*
+collapse_mmap(multiboot_memory_map_t* map, size_t* entries)
+{
+  uint64_t i = 0;
+  multiboot_memory_map_t* ret;
+  size_t total_entries;
+
+  if (!map || !entries || !(*entries))
+    return nullptr;
+
+  total_entries = *entries;
+  ret = heap_allocate(total_entries * sizeof(multiboot_memory_map_t));
+
+  if (!ret)
+    return nullptr;
+
+  *entries = 0;
+
+  while (i < total_entries) {
+    multiboot_memory_map_t current = map[i];
+    uintptr_t j = 1;
+
+    while (i + j < total_entries) {
+      multiboot_memory_map_t next = map[i + j];
+
+      if (current.type != next.type)
+        break;
+
+      current.len += next.len;
+
+      j++;
+    }
+    
+    /* Copy over the current entry */
+    memcpy(&ret[*entries], &current, sizeof(multiboot_memory_map_t));
+
+    i+=j;
+    (*entries)++;
   }
 
   return ret;
@@ -380,18 +427,35 @@ boot_context_configuration(light_ctx_t* ctx)
 
   /* Convert our lightloader mmap to a multiboot one and create the memory map tag */
   size_t entry_count = NULL;
+  size_t final_entry_count = NULL;
+  multiboot_memory_map_t* final_mmap;
   multiboot_memory_map_t* mmap = get_multiboot_memorymap(&entry_count, ctx);
 
+  /* This would be fucked */
   if (!mmap || !entry_count)
     panic("Failed to create multiboot memory map");
 
-  struct multiboot_tag_mmap* mmap_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_MMAP, sizeof(struct multiboot_tag_mmap) + sizeof(multiboot_memory_map_t) * entry_count);
+  /* Cache the entry count */
+  final_entry_count = entry_count;
+
+  /* This is not very needed, but just a nice  */
+  multiboot_memory_map_t* collapsed_mmap = collapse_mmap(mmap, &entry_count);
+
+  final_mmap = mmap;
+
+  /* If we could collapse, use the collapsed mmap */
+  if (collapsed_mmap && entry_count) {
+    final_mmap = collapsed_mmap;
+    final_entry_count = entry_count;
+  }
+
+  struct multiboot_tag_mmap* mmap_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_MMAP, sizeof(struct multiboot_tag_mmap) + sizeof(multiboot_memory_map_t) * final_entry_count);
 
   mmap_tag->entry_size = sizeof(multiboot_memory_map_t);
   mmap_tag->entry_version = 0;
 
-  for (uintptr_t i = 0; i < entry_count; i++) {
-    mmap_tag->entries[i] = mmap[i];
+  for (uintptr_t i = 0; i < final_entry_count; i++) {
+    mmap_tag->entries[i] = final_mmap[i];
   }
 
   struct multiboot_tag* end_tag = add_multiboot_tag(0, sizeof(struct multiboot_tag));
