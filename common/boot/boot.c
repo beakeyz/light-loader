@@ -108,6 +108,8 @@ get_multiboot_memorymap(size_t* entry_count, light_ctx_t* ctx)
   needed_address = 0;
   ret = heap_allocate(sizeof(multiboot_memory_map_t) * ctx->mmap_entries);
 
+  memset(ret, 0, ctx->mmap_entries * sizeof(multiboot_memory_map_t));
+
   while(i < ctx->mmap_entries) {
     light_mmap_entry_t* current = &light_mmap[i];
     uint64_t j = 1;
@@ -155,6 +157,8 @@ collapse_mmap(multiboot_memory_map_t* map, size_t* entries)
 
   if (!ret)
     return nullptr;
+
+  memset(ret, 0, total_entries * sizeof(multiboot_memory_map_t));
 
   *entries = 0;
 

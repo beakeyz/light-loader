@@ -86,17 +86,6 @@ gather_system_pointers(system_ptrs_t* ptrs)
 static uint32_t get_efi_memory_type(UINT32 weird_type) {
 
   switch (weird_type) {
-    case EfiReservedMemoryType:
-    case EfiUnusableMemory:
-    case EfiMemoryMappedIO:
-    case EfiMemoryMappedIOPortSpace:
-    case EfiPalCode:
-    default:
-      return MEMMAP_RESERVED;
-    case EfiRuntimeServicesCode:
-    case EfiRuntimeServicesData:
-    case EfiLoaderCode:
-    case EfiLoaderData:
     case EfiBootServicesCode:
     case EfiBootServicesData:
       return MEMMAP_EFI_RECLAIMABLE;
@@ -105,7 +94,18 @@ static uint32_t get_efi_memory_type(UINT32 weird_type) {
     case EfiACPIMemoryNVS:
       return MEMMAP_ACPI_NVS;
     case EfiConventionalMemory:
+    case EfiLoaderCode:
+    case EfiLoaderData:
       return MEMMAP_USABLE;
+    case EfiReservedMemoryType:
+    case EfiUnusableMemory:
+    case EfiMemoryMappedIO:
+    case EfiMemoryMappedIOPortSpace:
+    case EfiPalCode:
+    case EfiRuntimeServicesCode:
+    case EfiRuntimeServicesData:
+    default:
+      return MEMMAP_RESERVED;
   }
 
   // TODO: find out if this is bad practise
