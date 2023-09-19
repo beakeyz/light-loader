@@ -10,6 +10,7 @@
 
 struct light_font;
 struct light_ctx;
+struct light_component;
 
 /*
  * Simple union to generefy the way to represent colors in a framebuffer
@@ -88,6 +89,8 @@ int gfx_putchar(char c);
 int gfx_switch_buffers(light_gfx_t* gfx);
 
 void get_light_gfx(light_gfx_t** gfx);
+
+int gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component);
 
 static inline bool gfx_is_drawing_cursor(light_gfx_t* gfx)
 {

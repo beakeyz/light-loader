@@ -120,6 +120,16 @@ __bread(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 static int
 __bwrite(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 {
+  EFI_STATUS status;
+  efi_disk_stuff_t* stuff;
+
+  stuff = dev->private;
+
+  status = stuff->blockio->WriteBlocks(stuff->blockio, stuff->media->MediaId, lba, count * dev->sector_size, buffer);
+
+  if (EFI_ERROR(status))
+    return -1;
+  
   return 0;
 }
 

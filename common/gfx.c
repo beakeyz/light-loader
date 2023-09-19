@@ -5,11 +5,13 @@
 #include "key.h"
 #include "image.h"
 #include "mouse.h"
+#include "stddef.h"
 #include "ui/box.h"
 #include "ui/button.h"
 #include "ui/component.h"
 #include "ui/cursor.h"
 #include "ui/image.h"
+#include "ui/input_box.h"
 #include "ui/screens/home.h"
 #include "ui/screens/options.h"
 #include <gfx.h>
@@ -26,6 +28,7 @@ static light_component_t* root_component;
 static light_component_t* current_screen_root;
 
 static light_component_t* current_selected_btn;
+static light_component_t* current_selected_inputbox;
 
 #define SCREEN_HOME_IDX 0
 #define SCREEN_OPTIONS_IDX 1
@@ -385,6 +388,7 @@ gfx_do_screenswitch(light_gfx_t* gfx, light_component_t* new_screen)
   current_screen_root->next = new_screen;
 
   current_selected_btn = nullptr;
+  gfx_select_inputbox(gfx, nullptr);
 
   gfx->flags |= GFX_FLAG_SHOULD_CHANGE_SCREEN;
 
@@ -439,6 +443,50 @@ get_next_btn(light_component_t** out)
   *out = itt;
 }
 
+/*!
+ * @brief Set the component @component as the current selected inputbox
+ *
+ * Nothing to add here...
+ */
+int 
+gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component)
+{
+  inputbox_component_t* inputbox;
+
+  /* If the current inputbox is set, it is ensured to be of the type inputbox =) */
+  if (current_selected_inputbox && current_selected_inputbox != component) {
+    inputbox = current_selected_inputbox->private;
+
+    inputbox->focussed = false;
+    inputbox->current_input_size = 0;
+
+    memset(inputbox->input_buffer, 0, INPUTBOX_BUFFERSIZE);
+  }
+
+  if (!component) {
+    current_selected_inputbox = nullptr;
+    return 0;
+  }
+
+  if (component->type != COMPONENT_TYPE_INPUTBOX)
+    return -1;
+
+  inputbox = component->private;
+
+  if (!inputbox)
+    return -2;
+
+  inputbox->focussed = true;
+  current_selected_inputbox = component; 
+
+  return 0;
+}
+
+/*!
+ * @brief Main bootloader frontend loop
+ *
+ * Nothing to add here...
+ */
 gfx_frontend_result_t gfx_enter_frontend()
 {
   light_ctx_t* ctx = light_gfx.ctx;
@@ -446,6 +494,9 @@ gfx_frontend_result_t gfx_enter_frontend()
   light_mousepos_t mouse_buffer = { 0 };
   gfx_frontend_result_t result;
   uint32_t prev_mousepx;
+
+  current_selected_btn = nullptr;
+  current_selected_inputbox = nullptr;
 
   gfx_clear_screen(&light_gfx);
 
@@ -526,8 +577,8 @@ gfx_frontend_result_t gfx_enter_frontend()
     ctx->f_get_keypress(&key_buffer);
     ctx->f_get_mousepos(&mouse_buffer);
 
-    /* Tab */
-    if (key_buffer.typed_char == 9) {
+    /* Tab (temp) */
+    if (key_buffer.typed_char == '\t' && !current_selected_inputbox) {
       get_next_btn(&current_selected_btn);
 
       if (current_selected_btn) {
