@@ -49,7 +49,26 @@ static const size_t screens_count = sizeof screens / sizeof screens[0];
 light_color_t WHITE = CLR(0xFFFFFFFF);
 light_color_t BLACK = CLR(0x000000FF);
 light_color_t GRAY = CLR(0x1e1e1eFF);
+light_color_t DARK_GRAY = CLR(0x0c0c0cFF);
 light_color_t LIGHT_GRAY = CLR(0x303030FF);
+
+light_color_t PINK = CLR(0xf404dcFF);
+light_color_t DARK_PINK = CLR(0x1c081aFF);
+
+light_color_t PURPLE = CLR(0x7f27eaFF);
+light_color_t DARK_PURPLE = CLR(0x25192bFF);
+
+light_color_t BLUE = CLR(0x0e1defFF);
+light_color_t DARK_BLUE = CLR(0x1c192bFF);
+
+light_color_t CYAN = CLR(0x0ed5efFF);
+light_color_t DARK_CYAN = CLR(0x081b1cFF); /* Yay, I love dark light blue =))))))) */
+
+light_color_t GREEN = CLR(0x27ea34FF);
+light_color_t DARK_GREEN = CLR(0x0b1c08FF);
+
+light_color_t RED = CLR(0xf40000FF);
+light_color_t DARK_RED = CLR(0x1c0808FF);
 
 void gfx_load_font(struct light_font* font)
 {
@@ -458,9 +477,6 @@ gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component)
     inputbox = current_selected_inputbox->private;
 
     inputbox->focussed = false;
-    inputbox->current_input_size = 0;
-
-    memset(inputbox->input_buffer, 0, INPUTBOX_BUFFERSIZE);
   }
 
   if (!component) {

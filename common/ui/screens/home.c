@@ -42,8 +42,8 @@ construct_homescreen(light_component_t** root, light_gfx_t* gfx)
 
   create_component(root, COMPONENT_TYPE_LABEL, WELCOME_LABEL, 10, 34, lf_get_str_width(gfx->current_font, WELCOME_LABEL), gfx->current_font->height, nullptr);
 
-  create_inputbox(root, "Whats ur name?", 10, 70, 240, 24);
-  create_inputbox(root, "Whats ur name v2?", 10, 100, 240, 24);
+  create_inputbox(root, "Name", nullptr, 10, 70, 540, 24);
+  create_inputbox(root, "Age", nullptr, 10, 100, 540, 24);
 
   create_button(root, "Boot default", 8 + 8, gfx->height - (38 + 8), 120, 34, boot_default_config, nullptr);
   return 0;

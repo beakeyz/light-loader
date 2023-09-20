@@ -32,6 +32,26 @@ extern light_color_t WHITE;
 extern light_color_t BLACK;
 extern light_color_t GRAY;
 extern light_color_t LIGHT_GRAY;
+extern light_color_t DARK_GRAY;
+
+extern light_color_t PINK;
+extern light_color_t DARK_PINK;
+
+extern light_color_t PURPLE;
+extern light_color_t DARK_PURPLE;
+
+extern light_color_t BLUE;
+extern light_color_t DARK_BLUE;
+
+extern light_color_t CYAN;
+extern light_color_t DARK_CYAN; /* Yay, I love dark light blue =))))))) */
+
+extern light_color_t GREEN;
+extern light_color_t DARK_GREEN;
+
+extern light_color_t RED;
+extern light_color_t DARK_RED;
+
 
 /* TODO: implement color blending opperations to make use of the alpha chanel */
 int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);

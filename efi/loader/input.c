@@ -45,23 +45,35 @@ efi_init_keyboard()
   if (!handle_count)
     return;
 
+  text_in_protocol = ST->ConIn;
+
+  return;
+
+  // FIXME: this fucks us on real hw?
+  /*
   for (uintptr_t i = 0; i < handle_count; i++) {
     EFI_HANDLE handle = handles[i];
 
-    /* Try to open the protocol on the handle */
+    // Try to open the protocol on the handle
     error = open_protocol(handle, &input_guid, (void**)&text_in_protocol);
 
     if (error || !text_in_protocol)
       continue;
 
-    /* If we can reset the device, we are golden */
-    error = text_in_protocol->Reset(text_in_protocol, true);
+    // If we can reset the device, we are golden
+    error = text_in_protocol->Reset(text_in_protocol, false);
 
-    if (error == EFI_SUCCESS) {
-      heap_free(handles);
+    if (error == EFI_SUCCESS)
       break;
-    }
+
+    text_in_protocol = NULL;
   }
+
+  heap_free(handles);
+
+  if (!text_in_protocol)
+    text_in_protocol = ST->ConIn;
+  */
 }
 
 bool
@@ -235,7 +247,6 @@ efi_get_keypress(light_key_t* key)
       {
         key->typed_char = key_output.UnicodeChar;
         key->scancode = key_output.ScanCode;
-        key->pad = 0;
         return 0;
       }
     case EFI_DEVICE_ERROR:
