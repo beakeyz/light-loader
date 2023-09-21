@@ -476,6 +476,10 @@ gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component)
   if (current_selected_inputbox && current_selected_inputbox != component) {
     inputbox = current_selected_inputbox->private;
 
+    /* Update the deselect graphics */
+    current_selected_inputbox->should_update = true;
+
+    /* Clear the focussed flag */
     inputbox->focussed = false;
   }
 
@@ -553,9 +557,12 @@ gfx_frontend_result_t gfx_enter_frontend()
    */
 
   /* Main background color */
-  create_box(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, 0, true, GRAY);
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, 0, true, DARK_GRAY);
+
+  create_image(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, IMAGE_TYPE_BMP, "res/bckgrnd.bmp");
 
   /* Navigation bar */
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 24, 0, true, GRAY);
   create_box(&root_component, nullptr, 0, 0, light_gfx.width, 24, 0, false, LIGHT_GRAY);
 
   /* Navigation buttons */

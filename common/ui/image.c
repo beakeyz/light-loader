@@ -11,6 +11,7 @@ image_draw_func(light_component_t* c)
   image_component_t* image = c->private;
 
   switch (image->image_type) {
+    case IMAGE_TYPE_BMP:
     case IMAGE_TYPE_INLINE:
       {
         light_image_t* l_image = image->inline_img_data;
@@ -18,7 +19,6 @@ image_draw_func(light_component_t* c)
         draw_image(c->gfx, c->x, c->y, l_image);
       }
       break;
-    case IMAGE_TYPE_BMP:
     case IMAGE_TYPE_PNG:
     default:
       return -1;
@@ -40,6 +40,12 @@ create_image(light_component_t** link, char* label, uint32_t x, uint32_t y, uint
   image_component->inline_img_data = image;
 
   parent->private = image_component;
+
+  if (image_type == IMAGE_TYPE_BMP) {
+    char* path = (char*)image;
+
+    image_component->inline_img_data = load_bmp_image(path);
+  }
 
   return image_component;
 }

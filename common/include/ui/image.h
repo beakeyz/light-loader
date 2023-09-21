@@ -17,7 +17,7 @@ typedef struct image_component {
 
   union {
     struct light_image* inline_img_data;
-    light_file_t* image_file;
+    const char* image_path;
   };
 } image_component_t;
 

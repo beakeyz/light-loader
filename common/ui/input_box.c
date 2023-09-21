@@ -63,6 +63,16 @@ inputbox_should_update(light_component_t* c)
   /* How many chars can fit inside this box? (FIXME: should we recompute this every update?) */
   inputbox->current_max_ip_size = (ALIGN_DOWN(c->width, c->font->width) / c->font->width) - 1;
 
+  if (component_is_hovered(c) && is_lmb_clicked(*c->mouse_buffer) && !inputbox->is_clicked) {
+    inputbox->is_clicked = true;
+
+    gfx_select_inputbox(c->gfx, c);
+
+    c->should_update = true;
+  } else if (!is_lmb_clicked(*c->mouse_buffer)){
+    inputbox->is_clicked = false;
+  }
+
   if (inputbox->focussed && key->typed_char) {
     switch (key->typed_char) {
       /* Return should deselect our inputbox */
@@ -82,17 +92,11 @@ inputbox_should_update(light_component_t* c)
         if (!inputbox_has_reached_current_max(inputbox))
           inputbox->input_buffer[inputbox->current_input_size++] = key->typed_char;
     }
+
+    return true;
   }
 
-  if (component_is_hovered(c) && is_lmb_clicked(*c->mouse_buffer) && !inputbox->is_clicked) {
-    inputbox->is_clicked = true;
-
-    gfx_select_inputbox(c->gfx, c);
-  } else if (!is_lmb_clicked(*c->mouse_buffer)){
-    inputbox->is_clicked = false;
-  }
-
-  return true;
+  return c->should_update;
 }
 
 

@@ -1782,12 +1782,14 @@ load_bmp_image(char* path)
 
   image->height = fbuffer->height;
   image->width = fbuffer->width;
-  image->bytes_per_pixel = fbuffer->bpp / 8;
+  image->bytes_per_pixel = (fbuffer->bpp >> 3);
 
+  /*
   if (image->bytes_per_pixel != 4) {
     printf("Could not load bmp, bpp != 32");
     goto dealloc_and_fail;
   }
+  */
 
   uint64_t load_idx = 0;
 
@@ -1796,12 +1798,16 @@ load_bmp_image(char* path)
       uint8_t* blue = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 0;
       uint8_t* green = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 1;
       uint8_t* red = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 2;
-      uint8_t* alpha = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 3;
 
       image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *blue;
       image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 1] = *green;
       image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *red;
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 3] = *alpha;
+
+      if (image->bytes_per_pixel == 4) {
+        uint8_t* alpha = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 3;
+
+        image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 3] = *alpha;
+      }
 
       load_idx += image->bytes_per_pixel;
     }
