@@ -28,6 +28,7 @@ struct bmp_header {
 light_image_t* load_bmp_image(char* path);
 
 void draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image);
+light_image_t* scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t new_height);
 
 extern light_image_t default_logo;
 

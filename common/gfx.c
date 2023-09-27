@@ -112,7 +112,7 @@ gfx_transform_pixel(light_gfx_t* gfx, uint32_t clr)
   return ret;
 }
 
-uint32_t
+inline uint32_t
 gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
 {
   if (x >= gfx->width || y >= gfx->height || !gfx->back_fb)
@@ -121,23 +121,47 @@ gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
   return *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t));
 }
 
-void
-gfx_draw_pixel_raw(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
+void 
+gfx_draw_rect(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, light_color_t clr) 
 {
-  if (x >= gfx->width || y >= gfx->height)
+  uint32_t trf;
+
+  if (!clr.alpha)
     return;
 
-  if (!gfx->back_fb || !gfx->ctx->has_fw) {
-    /* Direct access */
-    *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-    return;
+  trf = transform_light_clr(gfx, clr);
+
+  gfx_draw_rect_raw(gfx, _x, _y, width, height, trf);
+}
+
+void 
+gfx_draw_rect_raw(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, uint32_t clr)
+{
+  uint32_t x;
+  uint32_t y;
+
+  for (uint32_t i = 0; i < height; i++) {
+    for (uint32_t j = 0; j < width; j++) {
+      
+      x = _x + j;
+      y = _y + i;
+
+      if (x >= gfx->width || y >= gfx->height)
+        return;
+
+      if (!gfx->back_fb || !gfx->ctx->has_fw) {
+        /* Direct access */
+        *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+        return;
+      }
+
+      *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+
+      /* When we are not drawing the cursor, we should look for any pixel updates */
+      if (!gfx_is_drawing_cursor(gfx))
+        update_cursor_pixel(gfx, x, y);
+    }
   }
-
-  *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-
-  /* When we are not drawing the cursor, we should look for any pixel updates */
-  if (!gfx_is_drawing_cursor(gfx))
-    update_cursor_pixel(gfx, x, y);
 }
 
 int 
@@ -152,27 +176,6 @@ lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out)
 
   *out = fg;
   return 0;
-}
-
-void
-gfx_draw_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, light_color_t clr)
-{
-  if (!clr.alpha)
-    return;
-  
-  if (x >= gfx->width || y >= gfx->height)
-    return;
-
-  /*
-  EFI_GRAPHICS_OUTPUT_BLT_PIXEL pixel = { 
-    .Red = clr.red,
-    .Green = clr.green, 
-    .Blue = clr.blue,
-    .Reserved = clr.alpha
-  };
-  */
-
-  gfx_draw_pixel_raw(gfx, x, y, transform_light_clr(gfx, clr));
 }
 
 void
@@ -193,7 +196,7 @@ gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t cl
     char glyph_part = glyph.data[_y];
     for (uint8_t _x = 0; _x < gfx->current_font->width; _x++) {
       if (glyph_part & (1 << _x)) {
-        gfx_draw_pixel(gfx, x + _x, y + _y, clr);
+        gfx_draw_rect(gfx, x + _x, y + _y, 1, 1, clr);
       } 
     }
   }
@@ -219,38 +222,23 @@ gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t 
 void
 gfx_clear_screen(light_gfx_t* gfx)
 {
-  for (uint32_t i = 0; i < gfx->height; i++) {
-    for (uint32_t j = 0; j < gfx->width; j++) {
-      gfx_draw_pixel_raw(gfx, j, i, 0x00);
-    }
-  }
+  gfx_draw_rect_raw(gfx, 0, 0, gfx->width, gfx->height, 0x00);
 
   /* Just in case */
   gfx_switch_buffers(gfx);
 }
 
 void 
-gfx_draw_rect(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr)
-{
-  for (uint32_t i = 0; i < height; i++) {
-    for (uint32_t j = 0; j < width; j++) {
-      gfx_draw_pixel(gfx, x + j, y + i, clr);
-    }
-  }
-}
-
-void 
 gfx_draw_rect_outline(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr)
 {
-  for (uint32_t i = 0; i < width; i++) {
-    gfx_draw_pixel(gfx, x + i, y, clr);
-    gfx_draw_pixel(gfx, x + i, y + height - 1, clr);
-  }
+  /* Horizontal lines */
+  gfx_draw_rect(gfx, x, y, width, 1, clr);
+  gfx_draw_rect(gfx, x, y + height - 1, width, 1, clr);
 
-  for (uint32_t i = 0; i < height; i++) {
-    gfx_draw_pixel(gfx, x, y + i, clr);
-    gfx_draw_pixel(gfx, x + width - 1, y + i, clr);
-  }
+  /* Vertical lines */
+  gfx_draw_rect(gfx, x, y, 1, height, clr);
+  gfx_draw_rect(gfx, x + width - 1, y, 1, height, clr);
+
 }
 
 void
@@ -261,7 +249,7 @@ gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light
       if (i * i + j * j > radius * radius)
         continue;
 
-      gfx_draw_pixel(gfx, x + j, y + i, clr);
+      gfx_draw_rect(gfx, x + j, y + i, 1, 1, clr);
     }
   }
 }
@@ -353,7 +341,7 @@ gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t pos)
       uint8_t g = default_logo.pixel_data[i * default_logo.bytes_per_pixel * 128 + j * default_logo.bytes_per_pixel + 1];
       uint8_t b = default_logo.pixel_data[i * default_logo.bytes_per_pixel * 128+ j * default_logo.bytes_per_pixel + 2];
 
-      gfx_draw_pixel(gfx, x + j, y + i, (light_color_t) {
+      gfx_draw_rect(gfx, x + j, y + i, 1, 1, (light_color_t) {
         .alpha = 0xFF,
         .red = r,
         .green = g,

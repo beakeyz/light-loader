@@ -172,6 +172,7 @@ default_label_draw(light_component_t* comp)
   uint32_t label_draw_x = (comp->width >> 1) - (lf_get_str_width(comp->gfx->current_font, comp->label) >> 1);
   uint32_t label_draw_y = (comp->height >> 1) - (comp->gfx->current_font->height >> 1);
 
+  component_draw_string_at(comp, comp->label, label_draw_x + 1, label_draw_y + 1, BLACK);
   return component_draw_string_at(comp, comp->label, label_draw_x, label_draw_y, WHITE);
 }
 

@@ -1799,9 +1799,9 @@ load_bmp_image(char* path)
       uint8_t* green = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 1;
       uint8_t* red = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 2;
 
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *blue;
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *red;
       image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 1] = *green;
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *red;
+      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *blue;
 
       if (image->bytes_per_pixel == 4) {
         uint8_t* alpha = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 3;
@@ -1839,7 +1839,7 @@ draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
       else
         a = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 3];
 
-      gfx_draw_pixel(gfx, x + j, y + i, (light_color_t) {
+      gfx_draw_rect(gfx, x + j, y + i, 1, 1, (light_color_t) {
         .alpha = a,
         .red = r,
         .green = g,
@@ -1847,4 +1847,14 @@ draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
       });
     }
   }
+}
+
+/*!
+ * @brief Create a new image with scaled dimentions
+ */
+light_image_t*
+scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t new_height)
+{
+  /* TODO: */
+  return nullptr;
 }
