@@ -10,7 +10,7 @@ trap 'handle_err' ERR
 # for now this is the only one :clown: (thus also unused)
 arch=x86
 url=https://ftp.gnu.org/gnu
-gcc_url=https://ftp.nluug.nl/languages/gcc/releases/gcc-10.1.0/
+gcc_url=https://ftp.nluug.nl/languages/gcc/releases/gcc-10.5.0/
 
 
 ## end
@@ -35,7 +35,7 @@ binutils_file="binutils-$bin_utils_version.tar.xz"
 export BINUTILS_SRC="$CC_PATH/src/$bin_utils_dir"
 
 # gcc
-gcc_version="10.1.0"
+gcc_version="10.5.0"
 gcc_dir="gcc-$gcc_version"
 gcc_file="gcc-$gcc_version.tar.xz"
 export GCC_SRC="$CC_PATH/src/$gcc_dir"
@@ -77,6 +77,9 @@ _patch () {
     cd ..
 }
 
+#
+# NOTE: some systems have different paths for local binaries (like /usr/local/bin instead of ~/.local/bin)
+#
 _install_suite () {
   log "Installing..."
   sudo cp $CC_PATH/bin/x86_64-pc-lightos-gcc ~/.local/bin

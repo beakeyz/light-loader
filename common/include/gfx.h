@@ -111,6 +111,8 @@ void get_light_gfx(light_gfx_t** gfx);
 
 int gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component);
 
+void gfx_reset_btn_select();
+
 static inline bool gfx_is_drawing_cursor(light_gfx_t* gfx)
 {
   return ((gfx->flags & GFX_FLAG_DRAWING_CURSOR) == GFX_FLAG_DRAWING_CURSOR);

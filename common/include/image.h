@@ -10,7 +10,7 @@ typedef struct light_image {
   uint_t  	 width;
   uint_t  	 height;
   uint_t  	 bytes_per_pixel;
-  uint8_t 	 pixel_data[128 * 128 * 3 + 1];
+  uint8_t 	 pixel_data[];
 } light_image_t;
 
 struct bmp_header {
@@ -19,7 +19,8 @@ struct bmp_header {
   uint32_t res;
   uint32_t image_start;
   uint32_t header_size;
-  int32_t width, height;
+  int32_t width;
+  int32_t height;
   uint16_t color_planes;
   uint16_t bpp;
   uint8_t pixels[];

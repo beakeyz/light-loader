@@ -303,6 +303,9 @@ efi_get_mousepos(light_mousepos_t* pos)
 
             limit_mousepos(pos);
 
+            /* Mouse moved, make sure to reset the gfx button selection */
+            gfx_reset_btn_select();
+
             set_previous_mousepos(*pos);
             break;
           }
@@ -340,6 +343,9 @@ efi_get_mousepos(light_mousepos_t* pos)
 
         /* Make sure we are not going over the set edge */
         limit_mousepos(pos);
+
+        /* Mouse moved, make sure to reset the gfx button selection */
+        gfx_reset_btn_select();
 
         /* Set this position as the previous for next reads */
         set_previous_mousepos(*pos);

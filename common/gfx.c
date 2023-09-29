@@ -394,7 +394,7 @@ gfx_do_screenswitch(light_gfx_t* gfx, light_component_t* new_screen)
 {
   current_screen_root->next = new_screen;
 
-  current_selected_btn = nullptr;
+  gfx_reset_btn_select();
   gfx_select_inputbox(gfx, nullptr);
 
   gfx->flags |= GFX_FLAG_SHOULD_CHANGE_SCREEN;
@@ -429,15 +429,10 @@ tab_btn_onclick(button_component_t* c)
   return 0;
 }
 
-static void
-get_next_btn(light_component_t** out)
+static light_component_t*
+__next_btn(light_component_t* start)
 {
-  light_component_t* itt;
-
-  if (*out)
-    itt = (*out)->next;
-  else
-    itt = root_component;
+  light_component_t* itt = start;
 
   while (itt) {
 
@@ -446,6 +441,23 @@ get_next_btn(light_component_t** out)
     
     itt = itt->next;
   }
+
+  return itt;
+}
+
+static void
+get_next_btn(light_component_t** out)
+{
+  light_component_t* itt;
+
+  if (*out) {
+    itt = __next_btn((*out)->next);
+
+    /* If we could not find it, loop back around */
+    if (!itt)
+      itt = __next_btn(root_component);
+  } else
+    itt = __next_btn(root_component);
 
   *out = itt;
 }
@@ -490,12 +502,60 @@ gfx_select_inputbox(light_gfx_t* gfx, struct light_component* component)
   return 0;
 }
 
+static void gfx_handle_keypress(char pressed_char)
+{
+
+  switch (pressed_char) {
+    case '\t':
+      get_next_btn(&current_selected_btn);
+
+      if (current_selected_btn) {
+        set_previous_mousepos((light_mousepos_t) {
+          .x = current_selected_btn->x + (current_selected_btn->width >> 1) - 1,
+          .y = current_selected_btn->y + (current_selected_btn->height >> 1) - 1,
+          .btn_flags = 0
+        });
+      }
+      break;
+    case '\r':
+      {
+        button_component_t* current_selected_btn_cmp = NULL;
+
+        if (current_selected_btn && current_selected_btn->private) {
+          current_selected_btn_cmp = current_selected_btn->private;
+
+          current_selected_btn_cmp->f_click_func(current_selected_btn_cmp);
+        }
+        break;
+      }
+  }
+}
+
+static inline bool
+gfx_should_switch_screen(light_gfx_t* gfx)
+{
+  return ((gfx->flags & GFX_FLAG_SHOULD_CHANGE_SCREEN) == GFX_FLAG_SHOULD_CHANGE_SCREEN);
+}
+
+static inline bool
+gfx_should_exit_frontend(light_gfx_t* gfx)
+{
+  return ((gfx->flags & GFX_FLAG_SHOULD_EXIT_FRONTEND) == GFX_FLAG_SHOULD_EXIT_FRONTEND);
+}
+
+void 
+gfx_reset_btn_select()
+{
+  current_selected_btn = nullptr;
+}
+
 /*!
  * @brief Main bootloader frontend loop
  *
  * Nothing to add here...
  */
-gfx_frontend_result_t gfx_enter_frontend()
+gfx_frontend_result_t 
+gfx_enter_frontend()
 {
   light_ctx_t* ctx = light_gfx.ctx;
   light_key_t key_buffer = { 0 };
@@ -583,21 +643,22 @@ gfx_frontend_result_t gfx_enter_frontend()
   /*
    * Loop until something wants us to exit
    */
-  while ((light_gfx.flags & GFX_FLAG_SHOULD_EXIT_FRONTEND) != GFX_FLAG_SHOULD_EXIT_FRONTEND) {
+  while (!gfx_should_exit_frontend(&light_gfx)) {
 
     ctx->f_get_keypress(&key_buffer);
     ctx->f_get_mousepos(&mouse_buffer);
 
     /* Tab (temp) */
-    if (key_buffer.typed_char == '\t' && !current_selected_inputbox) {
-      get_next_btn(&current_selected_btn);
+    if (key_buffer.typed_char && !current_selected_inputbox) {
+      gfx_handle_keypress(key_buffer.typed_char);
 
-      if (current_selected_btn) {
-        set_previous_mousepos((light_mousepos_t) {
-          .x = current_selected_btn->x + 1,
-          .y = current_selected_btn->y + 1,
-          .btn_flags = 0
-        });
+      /* Catch gfx exit stuff */
+      if (gfx_should_exit_frontend(&light_gfx))
+        break;
+
+      if (gfx_should_switch_screen(&light_gfx)) {
+        gfx_do_screen_update();
+        goto frontend_loop_cycle;
       }
     } 
 
@@ -613,7 +674,7 @@ gfx_frontend_result_t gfx_enter_frontend()
       update_component(i, key_buffer, mouse_buffer);
 
       /* Update prompted a screen chance. Do it */
-      if ((light_gfx.flags & GFX_FLAG_SHOULD_CHANGE_SCREEN) == GFX_FLAG_SHOULD_CHANGE_SCREEN) {
+      if (gfx_should_switch_screen(&light_gfx)) {
         gfx_do_screen_update();
         break;
       }
@@ -621,6 +682,8 @@ gfx_frontend_result_t gfx_enter_frontend()
       draw_component(i, key_buffer, mouse_buffer);
     }
     
+frontend_loop_cycle:
+
     /* keep this clear after a draw pass */
     light_gfx.flags &= ~GFX_FLAG_SHOULD_CHANGE_SCREEN;
 

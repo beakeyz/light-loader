@@ -1767,12 +1767,13 @@ load_bmp_image(char* path)
 
   file->f_readall(file, fbuffer);
 
-  if (fbuffer->magic[0] != 'B' && fbuffer->magic[1] != 'M') {
-    printf("Could not load bmp");
+  if (fbuffer->magic[0] != 'B' && fbuffer->magic[1] != 'M')
     goto dealloc_and_fail;
-  }
 
-  image_s_size = sizeof(light_image_t) + (fbuffer->bpp / 8) * fbuffer->width * fbuffer->height;
+  if (fbuffer->width < 0 || fbuffer->height < 0)
+    goto dealloc_and_fail;
+
+  image_s_size = sizeof(light_image_t) + (fbuffer->bpp >> 3) * fbuffer->width * fbuffer->height;
   image = heap_allocate(image_s_size);
 
   if (!image)
@@ -1791,31 +1792,38 @@ load_bmp_image(char* path)
   }
   */
 
+  uint32_t y_offset = 0;
   uint64_t load_idx = 0;
 
-  for (uint32_t i = image->height; i; i--) {
+  for (uint32_t i = 0; i < image->height; i++) {
     for (uint32_t j = 0; j < image->width; j++) {
+
+      /* BMPs are loaded from the bottom fsr xD */
+      y_offset = (image->height - 1) - i;
+
       uint8_t* blue = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 0;
       uint8_t* green = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 1;
       uint8_t* red = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 2;
 
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *red;
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 1] = *green;
-      image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *blue;
+      image->pixel_data[y_offset * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 0] = *red;
+      image->pixel_data[y_offset * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 1] = *green;
+      image->pixel_data[y_offset * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 2] = *blue;
 
       if (image->bytes_per_pixel == 4) {
         uint8_t* alpha = (uint8_t*)((uint8_t*)fbuffer + fbuffer->image_start) + load_idx + 3;
 
-        image->pixel_data[i * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 3] = *alpha;
+        image->pixel_data[y_offset * image->bytes_per_pixel * image->width + j * image->bytes_per_pixel + 3] = *alpha;
       }
 
       load_idx += image->bytes_per_pixel;
     }
   }
     
+  file->f_close(file);
   return image;
 
 dealloc_and_fail:
+  printf("Could not load bmp");
   heap_free(fbuffer);
   file->f_close(file);
   return nullptr;
@@ -1834,7 +1842,7 @@ draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
 
       uint8_t a;
 
-      if (l_image->bytes_per_pixel == 3)
+      if (l_image->bytes_per_pixel != 4)
         a = 0xFF;
       else
         a = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 3];
@@ -1855,6 +1863,25 @@ draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
 light_image_t*
 scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t new_height)
 {
+  size_t total_image_size;
+  light_image_t* ret;
+
+  if (!image)
+    return NULL;
+
+  total_image_size = sizeof(light_image_t) + new_width * new_height * image->bytes_per_pixel;
+  ret = heap_allocate(total_image_size);
+
+  if (!ret)
+    return NULL;
+
+  memset(ret, 0, total_image_size);
+
+  ret->width = new_width;
+  ret->height = new_height;
+  ret->bytes_per_pixel = image->bytes_per_pixel;
+
   /* TODO: */
+
   return nullptr;
 }
