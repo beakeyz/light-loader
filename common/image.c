@@ -1820,6 +1820,7 @@ load_bmp_image(char* path)
   }
     
   file->f_close(file);
+  heap_free(fbuffer);
   return image;
 
 dealloc_and_fail:
@@ -1829,6 +1830,7 @@ dealloc_and_fail:
   return nullptr;
 }
 
+#define IMG_CLR_BYTE(image, x, y, rgba_idx) (((rgba_idx) > 3) ? 0 : ((y) * (image)->bytes_per_pixel * (image)->width + (x) * (image)->bytes_per_pixel + (rgba_idx)))
 
 void 
 draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
@@ -1836,16 +1838,16 @@ draw_image(light_gfx_t* gfx, uint32_t x, uint32_t y, light_image_t* l_image)
   for (uint32_t i = 0; i < l_image->height; i++) {
     for (uint32_t j = 0; j < l_image->width; j++) {
 
-      uint8_t r = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 0];
-      uint8_t g = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 1];
-      uint8_t b = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 2];
+      uint8_t r = l_image->pixel_data[IMG_CLR_BYTE(l_image, j, i, 0)];
+      uint8_t g = l_image->pixel_data[IMG_CLR_BYTE(l_image, j, i, 1)];
+      uint8_t b = l_image->pixel_data[IMG_CLR_BYTE(l_image, j, i, 2)];
 
       uint8_t a;
 
       if (l_image->bytes_per_pixel != 4)
         a = 0xFF;
       else
-        a = l_image->pixel_data[i * l_image->bytes_per_pixel * l_image->width + j * l_image->bytes_per_pixel + 3];
+        a = l_image->pixel_data[IMG_CLR_BYTE(l_image, j, i, 3)];
 
       gfx_draw_rect(gfx, x + j, y + i, 1, 1, (light_color_t) {
         .alpha = a,
@@ -1864,6 +1866,7 @@ light_image_t*
 scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t new_height)
 {
   size_t total_image_size;
+  size_t old_width, old_height;
   light_image_t* ret;
 
   if (!image)
@@ -1877,11 +1880,36 @@ scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t
 
   memset(ret, 0, total_image_size);
 
+  old_width = image->width;
+  old_height = image->height;
+
   ret->width = new_width;
   ret->height = new_height;
   ret->bytes_per_pixel = image->bytes_per_pixel;
 
-  /* TODO: */
+  /*
+   * TODO: Test and fix =)))))
+   */
+  for (size_t y = 0; y < new_height; y++) {
 
-  return nullptr;
+    /*
+     * We want to calculate the x and y positions on the old image for each new
+     * x and y where we want to yoink color from
+     */
+    size_t scaled_y = (y * old_height) / new_height;
+    size_t scaled_x = 0;
+
+    for (size_t x = 0; x < new_width; x++) {
+
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 0)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 0)];
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 1)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 1)];
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 2)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 2)];
+      if (ret->bytes_per_pixel == 4)
+        ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 3)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 3)];
+
+      scaled_x = (x * old_width) / new_width;
+    }
+  }
+
+  return ret;
 }

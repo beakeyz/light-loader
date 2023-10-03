@@ -72,19 +72,36 @@ uint8_t
 disk_select_cache(disk_dev_t* device, uint64_t block)
 {
   uint8_t lower_count = 0;
-  uint8_t preferred_cache_idx = 0;
+  uint8_t preferred_cache_idx = (uint8_t)-1;
   uint8_t lowest_usecount = 0xFF;
+
+  /*
+   * Loop one: look for unused blocks, or blocks that are still in our
+   * cache that we haven't written to yet (and flushed to disk so disk is
+   * out of sync with the cache)
+   */
   for (uint8_t i = 0; i < 8; i++) {
 
-    /* Free cache? Yoink */
-    if ((device->cache.cache_dirty_flags & (1 << i)) == 0)
-      return i;
-
-    /* If there already is a cache with this block, get that one */
-    if (device->cache.cache_block[i] == block) {
-      return i;
+    /* Free cache? Mark it and go next */
+    if ((device->cache.cache_dirty_flags & (1 << i)) == 0) {
+      preferred_cache_idx = i;
+      continue;
     }
 
+    /* If there already is a cache with this block, get that one */
+    if (device->cache.cache_block[i] == block)
+      return i;
+  }
+
+  /* If there was a cache with a lowest count, use that */
+  if (preferred_cache_idx != (uint8_t)-1)
+    return preferred_cache_idx;
+
+  /*
+   * Loop two: find the cache with the lowest usecount so we can use that
+   * boi to store our shit
+   */
+  for (uint8_t i = 0; i < 8; i++) {
     if (device->cache.cache_usage_count[i] < lowest_usecount) {
       lowest_usecount = device->cache.cache_usage_count[i];
       lower_count++;
@@ -92,10 +109,11 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
     }
   }
 
-  /* If there was a cache with a lowest count, use that */
+  /* NOTE: Increased lower count implies that preferred_cache_idx got set to a valid index */
   if (lower_count)
     return preferred_cache_idx;
 
+  /* Fuck: last option, use the in-house cycle to cycle to the next 'oldest' cache =/ */
   preferred_cache_idx = device->cache.cache_oldest;
 
   device->cache.cache_oldest = (device->cache.cache_oldest + 1) % 7;

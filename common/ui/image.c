@@ -44,7 +44,11 @@ create_image(light_component_t** link, char* label, uint32_t x, uint32_t y, uint
   if (image_type == IMAGE_TYPE_BMP) {
     char* path = (char*)image;
 
-    image_component->inline_img_data = load_bmp_image(path);
+    light_image_t* full_image = load_bmp_image(path);
+
+    image_component->inline_img_data = scale_image(parent->gfx, full_image, width, height);
+
+    heap_free(full_image);
   }
 
   return image_component;
