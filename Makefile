@@ -97,6 +97,9 @@ $(OUT)/%.o: %.asm
 	@$(DIRECTORY_GUARD)
 	@$(ASM_COMP) $< -o $@ -f elf64
 
+.PHONY: all
+all: build image debug
+
 .PHONY: build 
 build: $(C_OBJ) $(S_OBJ) $(ASM_OBJ) ## Build the objects
 	@echo -e Linking...

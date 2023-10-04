@@ -1901,11 +1901,11 @@ scale_image(light_gfx_t* gfx, light_image_t* image, uint32_t new_width, uint32_t
 
     for (size_t x = 0; x < new_width; x++) {
 
-      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 0)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 0)];
-      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 1)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 1)];
-      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 2)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 2)];
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 0)] = image->pixel_data[IMG_CLR_BYTE(image, scaled_x, scaled_y, 0)];
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 1)] = image->pixel_data[IMG_CLR_BYTE(image, scaled_x, scaled_y, 1)];
+      ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 2)] = image->pixel_data[IMG_CLR_BYTE(image, scaled_x, scaled_y, 2)];
       if (ret->bytes_per_pixel == 4)
-        ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 3)] = image->pixel_data[IMG_CLR_BYTE(ret, scaled_x, scaled_y, 3)];
+        ret->pixel_data[IMG_CLR_BYTE(ret, x, y, 3)] = image->pixel_data[IMG_CLR_BYTE(image, scaled_x, scaled_y, 3)];
 
       scaled_x = (x * old_width) / new_width;
     }
