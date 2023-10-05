@@ -40,8 +40,8 @@ static light_component_t* screens[] = {
 };
 
 static char* screen_labels[] = {
-  [SCREEN_HOME_IDX] = "Home",
-  [SCREEN_OPTIONS_IDX] = "Options",
+  [SCREEN_HOME_IDX] = "res/home.bmp",
+  [SCREEN_OPTIONS_IDX] = "res/opt.bmp",
 };
 
 static const size_t screens_count = sizeof screens / sizeof screens[0];
@@ -419,7 +419,12 @@ static int
 tab_btn_onclick(button_component_t* c)
 {
   light_component_t* target;
-  uint32_t target_index = c->private;
+  tab_btn_private_t* priv = (tab_btn_private_t*)c->private;
+  int target_index = priv->index;
+
+  /* Invalid index =\ */
+  if (target_index < 0)
+    return -1;
 
   /* Grab the target */
   target = gfx_get_screen(target_index);
@@ -610,18 +615,17 @@ gfx_enter_frontend()
   create_image(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, IMAGE_TYPE_BMP, "res/bckgrnd.bmp");
 
   /* Navigation bar */
-  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 24, 0, true, GRAY);
-  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 24, 0, false, LIGHT_GRAY);
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 38, 0, true, GRAY);
 
   /* Navigation buttons */
   for (uint32_t i = 0; i < screens_count; i++) {
-    const uint32_t btn_width = 80;
-    const uint32_t initial_offset = 4;
+    const uint32_t btn_width = 36;
+    const uint32_t initial_offset = 2;
 
     /* Add btn_width for every screen AND add the initial offset times the amount of buttons before us */
     uint32_t x_offset = i * btn_width + initial_offset * (i + 1);
 
-    create_tab_button(&root_component, screen_labels[i], x_offset, 4, btn_width, 16, tab_btn_onclick, i);
+    create_tab_button(&root_component, screen_labels[i], x_offset, 1, btn_width, 36, tab_btn_onclick, i);
   }
 
   /* Create a box for the home screen */

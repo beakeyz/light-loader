@@ -1,5 +1,6 @@
 #include "font.h"
 #include "gfx.h"
+#include "image.h"
 #include "mouse.h"
 #include "ui/component.h"
 #include <stdio.h>
@@ -46,12 +47,19 @@ create_button(light_component_t** link, char* label, uint32_t x, uint32_t y, uin
 static int
 draw_tab_btn(light_component_t* c)
 {
+  button_component_t* btn = c->private;
+  struct tab_btn_private* priv = (struct tab_btn_private*)btn->private;
+
   gfx_draw_rect(c->gfx, c->x, c->y, c->width, c->height, LIGHT_GRAY);
 
-  if (component_is_hovered(c))
+  if (component_is_hovered(c)) {
     gfx_draw_rect_outline(c->gfx, c->x, c->y, c->width, c->height, BLACK);
+    gfx_draw_rect(c->gfx, c->x, c->y + c->height - 2, c->width, 2, BLACK);
+  }
 
-  if (c->label) {
+  if (priv->icon_image) {
+    draw_image(c->gfx, c->x, c->y, priv->icon_image);
+  } else if (c->label) {
     uint32_t label_x = (c->width >> 1) - (lf_get_str_width(c->gfx->current_font, c->label) >> 1);
     uint32_t label_y = (c->height >> 1) - (c->gfx->current_font->height >> 1);
     component_draw_string_at(c, c->label, label_x, label_y, WHITE);
@@ -62,10 +70,24 @@ draw_tab_btn(light_component_t* c)
 button_component_t* 
 create_tab_button(light_component_t** link, char* label, uint32_t x, uint32_t y, uint32_t width, uint32_t height, int (*onclick)(button_component_t* this), uint32_t target_index)
 {
-  button_component_t* ret = create_button(link, label, x, y, width, height, onclick, draw_tab_btn);
+  struct tab_btn_private* priv;
+  button_component_t* ret;
+
+  if (!link)
+    return nullptr;
+
+  ret = create_button(link, label, x, y, width, height, onclick, draw_tab_btn);
+
+  if (!ret) 
+    return nullptr;
+
+  priv = heap_allocate(sizeof(*priv));
+
+  priv->index = target_index;
+  priv->icon_image = load_bmp_image(label);
 
   /* For tabs, we can simply store the target index directly in ->private */
-  ret->private = (uint64_t)target_index;
+  ret->private = (uint64_t)priv;
 
   return ret;
 }

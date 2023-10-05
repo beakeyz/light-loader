@@ -47,7 +47,7 @@ construct_homescreen(light_component_t** root, light_gfx_t* gfx)
   const uint32_t boot_btn_height = 28;
   const uint32_t welcome_lbl_width = lf_get_str_width(gfx->current_font, WELCOME_LABEL);
 
-  create_component(root, COMPONENT_TYPE_LABEL, WELCOME_LABEL, screen_center_x - (welcome_lbl_width >> 1), 34, welcome_lbl_width, gfx->current_font->height, nullptr);
+  create_component(root, COMPONENT_TYPE_LABEL, WELCOME_LABEL, screen_center_x - (welcome_lbl_width >> 1), 50, welcome_lbl_width, gfx->current_font->height, nullptr);
 
   create_button(root, "Boot default", screen_center_x - (boot_btn_width >> 1), gfx->height - boot_btn_height - 8, boot_btn_width, boot_btn_height, boot_default_config, nullptr);
   return 0;
