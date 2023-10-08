@@ -15,6 +15,7 @@ typedef struct fat_private {
   uint32_t root_directory_sectors;
   uint32_t total_reserved_sectors;
   uint32_t total_usable_sectors;
+  uint32_t first_cluster_offset;
   uint32_t cluster_count;
   uint32_t cluster_size;
   uintptr_t usable_clusters_start;
@@ -56,8 +57,8 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   private->total_usable_sectors = bpb.sector_num_fat32 - private->total_reserved_sectors;
   private->cluster_count = private->total_usable_sectors / bpb.sectors_per_cluster;
   private->cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
-  private->total_usable_sectors = bpb.reserved_sector_count * bpb.bytes_per_sector;
-  private->usable_clusters_start = (uintptr_t)(bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat));
+  private->first_cluster_offset = bpb.reserved_sector_count * bpb.bytes_per_sector;
+  private->usable_clusters_start = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat));
 
   /* TODO: support lfn */
   private->flags |= FAT_FLAG_NO_LFN;
@@ -99,7 +100,7 @@ __fat32_load_cluster(light_fs_t* fs, uint32_t* buffer, uint32_t cluster)
   fat_private_t* p;
 
   p = fs->private;
-  error = fs->device->f_read(fs->device, buffer, sizeof(*buffer), p->total_usable_sectors + (cluster * sizeof(*buffer)));
+  error = fs->device->f_read(fs->device, buffer, sizeof(*buffer), p->first_cluster_offset + (cluster * sizeof(*buffer)));
 
   if (error)
     return error;
