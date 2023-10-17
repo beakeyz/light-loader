@@ -43,7 +43,7 @@ disk_init_cache(disk_dev_t* device)
   device->cache.cache_oldest = 0;
   device->cache.cache_dirty_flags = NULL;
 
-  device->cache.cache_size = device->optimal_transfer_factor * device->sector_size;
+  device->cache.cache_size = device->sector_size;
 
   for (uint8_t i = 0; i < 8; i++) {
     device->cache.cache_ptr[i] = heap_allocate(device->cache.cache_size);
@@ -121,6 +121,10 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
   return preferred_cache_idx;
 }
 
+/*!
+ * NOTE: ->f_bread is permitted here, since we allocate a buffer of sector_size on the stack
+ * BUT: this buffer might exeed stack size so FIXME
+ */
 void
 cache_gpt_header(disk_dev_t* device)
 {

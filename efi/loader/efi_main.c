@@ -68,13 +68,11 @@ efi_exit_bs()
   if (EFI_ERROR(status))
     return -4;
 
+  /* Firmware has fucked off, we can now disable interrupts and stuff */
   asm volatile ("cld" ::: "memory");
   asm volatile ("cli" ::: "memory");
 
   ctx->has_fw = false;
-  /* TODO */
-  /* Create and cache final memmap */
-  /* Exit BootServices */
   return 0;
 }
 

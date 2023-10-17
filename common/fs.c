@@ -1,8 +1,16 @@
 #include "fs.h"
 #include <stddef.h>
 #include "fs/fat/fat32.h"
+#include "heap.h"
+#include <memory.h>
 
+/*
+ * These are placeholder objects that we use as a reference for when we mount them and copy
+ * them over into an entry of @mounted_filesystems
+ */
 static light_fs_t* filesystems;
+/* These are the filesystems that are currently active on their respective disks */
+static light_fs_t* mounted_filesystems;
 
 static light_fs_t**
 __find_fs(light_fs_t* fs) 
@@ -79,11 +87,18 @@ get_fs(uint8_t type)
   return *fs;
 }
 
+/*!
+ * @brief: Try to see if a filesystem fits on a disk device @device
+ *
+ * When we find that the filesystem fits, we copy it over to the @mounted_filesystems
+ * list
+ */
 int
 disk_probe_fs(disk_dev_t* device)
 {
   int error = -1;
   light_fs_t* fs;
+  light_fs_t* copy_fs;
 
   for (fs = filesystems; fs; fs = fs->next) {
     error = fs->f_probe(fs, device);
@@ -93,8 +108,23 @@ disk_probe_fs(disk_dev_t* device)
   }
 
   /* Make sure these are set up correctly */
-  fs->device = device;
-  device->filesystem = fs;
+  if (fs) {
+    copy_fs = heap_allocate(sizeof(*fs));
+
+    /* Copy over the filesystem into its permanent memory location */
+    memcpy(copy_fs, fs, sizeof(*fs));
+
+    /* Link it into the mounted filesystems */
+    copy_fs->next = mounted_filesystems;
+    mounted_filesystems = copy_fs;
+
+    /* Arm the device for filesystem opperations */
+    copy_fs->device = device;
+    device->filesystem = copy_fs;
+
+    /* Make sure the old filesystem has a cleared private field (this is now owned by copy_fs) */
+    fs->private = nullptr;
+  }
 
   return error;
 }
@@ -103,5 +133,7 @@ void
 init_fs()
 {
   filesystems = nullptr;
+  mounted_filesystems = nullptr;
+
   init_fat_fs();
 }

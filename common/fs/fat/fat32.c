@@ -10,6 +10,9 @@
 #define FAT_FLAG_NO_LFN 0x00000001
 #define FAT_FLAG_EXFAT  0x00000002
 
+static int __fat32_load_clusters(light_fs_t* fs, void* buffer, fat_file_t* file, uint32_t start, size_t count);
+static int __fat32_load_cluster(light_fs_t* fs, uint32_t* buffer, uint32_t cluster);
+
 typedef struct fat_private {
   fat_bpb_t bpb;
   uint32_t root_directory_sectors;
@@ -31,7 +34,7 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   fat_private_t* private;
   fat_bpb_t bpb = { 0 };
 
-  error = device->f_bread(device, &bpb, 1, device->first_sector);
+  error = device->f_read(device, &bpb, sizeof(bpb), device->first_sector);
 
   if (error)
     return error;
@@ -100,6 +103,10 @@ __fat32_load_cluster(light_fs_t* fs, uint32_t* buffer, uint32_t cluster)
   fat_private_t* p;
 
   p = fs->private;
+
+  if (cluster > p->cluster_count)
+    return -1;
+
   error = fs->device->f_read(fs->device, buffer, sizeof(*buffer), p->first_cluster_offset + (cluster * sizeof(*buffer)));
 
   if (error)
@@ -109,6 +116,223 @@ __fat32_load_cluster(light_fs_t* fs, uint32_t* buffer, uint32_t cluster)
   *buffer &= 0x0fffffff;
 
   return 0;
+}
+
+/*!
+ * @brief: Set the value of a cluster in the FAT
+ */
+static int
+__fat32_set_cluster(light_fs_t* fs, uint32_t value, uint32_t cluster)
+{
+  int error;
+  fat_private_t* p;
+
+  p = fs->private;
+
+  if (cluster > p->cluster_count)
+    return -1;
+
+  /* Mask any fucky bits to comply with FAT32 standards */
+  value &= 0x0fffffff;
+
+  return fs->device->f_write(fs->device, &value, sizeof(value), p->first_cluster_offset + (cluster * sizeof(value)));
+}
+
+/*!
+ * @brief: Read one entire cluster into a local buffer
+ */
+static int
+__fat32_read_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
+{
+  int error;
+  uintptr_t current_cluster_offset;
+
+  fat_private_t* p;
+
+  if (!fs || !fs->private)
+    return -1;
+
+  p = fs->private;
+  current_cluster_offset = (p->usable_clusters_start + (cluster - 2) * p->bpb.sectors_per_cluster) * p->bpb.bytes_per_sector;
+  error = fs->device->f_read(fs->device, buffer, p->cluster_size, current_cluster_offset);
+
+  if (error)
+    return -2;
+
+  return 0;
+}
+
+/*!
+ * @brief: Write one entrie cluster to disk
+ */
+static int
+__fat32_write_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
+{
+  int error;
+  uintptr_t current_cluster_offset;
+
+  fat_private_t* p;
+
+  if (!fs || !fs->private)
+    return -1;
+
+  p = fs->private;
+  current_cluster_offset = (p->usable_clusters_start + (cluster - 2) * p->bpb.sectors_per_cluster) * p->bpb.bytes_per_sector;
+  error = fs->device->f_write(fs->device, buffer, p->cluster_size, current_cluster_offset);
+
+  if (error)
+    return -2;
+
+  return 0;
+}
+
+/*!
+ * @brief: Finds the index of a free cluster
+ *
+ * @returns: 0 on success, anything else on failure (TODO: real ierror API)
+ * @buffer: buffer where the index gets put into
+ */
+static int
+__fat32_find_free_cluster(light_fs_t* fs, uint32_t* buffer)
+{
+  int error;
+  uint32_t current_index;
+  uint32_t cluster_buff;
+  fat_private_t* p;
+
+  p = fs->private;
+  current_index = 0;
+  cluster_buff = 0xff;
+
+  while (current_index < p->cluster_count) {
+
+    /* Try to load the value of the cluster at our current index into the value buffer */
+    error = __fat32_load_cluster(fs, &cluster_buff, current_index);
+
+    if (error)
+      return error;
+
+    /* Zero in a cluster index means its free / unused */
+    if (cluster_buff == 0)
+      break;
+
+    current_index++;
+  }
+
+  /* Could not find a free cluster, WTF */
+  if (current_index >= p->cluster_count)
+    return -1;
+
+  /* Place the index into the buffer */
+  *buffer = current_index;
+
+  return 0;
+}
+
+/*!
+ * @brief: Find the last cluster of a fat directory entry
+ *
+ * @returns: 0 on success, anything else on failure
+ */
+static int 
+__fat32_find_end_cluster(light_fs_t* fs, fat_dir_entry_t* de, uint32_t* buffer)
+{
+  int error;
+  fat_private_t* p;
+  uint32_t previous_value;
+  uint32_t value_buffer;
+
+  p = fs->private;
+  value_buffer = de->dir_frst_cluster_lo | ((uint32_t)de->dir_frst_cluster_hi << 16);
+  previous_value = value_buffer;
+
+  while (true) {
+    /* Load one cluster */
+    error = __fat32_load_cluster(fs, &value_buffer, value_buffer);
+
+    if (error)
+      return error;
+
+    /* Reached end? */
+    if (value_buffer < 0x2 || value_buffer > FAT32_CLUSTER_LIMIT)
+      break;
+
+    previous_value = value_buffer;
+  }
+
+  /* previous_value holds the index to the last cluster at this point. Ez pz */
+  *buffer = previous_value;
+
+  return 0;
+}
+
+/*!
+ * @brief: Add a new directory entry in a directory
+ *
+ * This function checks to see if the specified 'directory' is also considered a directory
+ * by FAT32 standards
+ *
+ * We simply find the last dir entry inside this directory and see if we have space in this cluster to append another
+ * entry. If not, we'll expand the cluster chain by one in order to fit our new entry
+ *
+ * TODO: test this routine
+ */
+static int 
+__fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* entry)
+{
+  int error;
+  fat_private_t* p;
+  uint32_t last_cluster;
+  uint32_t current_dir_entry_idx;
+  uint32_t potential_dir_entry_count;
+  fat_dir_entry_t* current_dir_entry;
+
+  if (!dir || (dir->dir_attr & FAT_ATTR_DIRECTORY) != FAT_ATTR_DIRECTORY)
+    return -1;
+
+  p = fs->private;
+
+  error = __fat32_find_end_cluster(fs, dir, &last_cluster);
+
+  if (error)
+    return -2;
+
+  /* Yay, we found the last data cluster. Lets cache it rq */
+  uint8_t cluster_buffer[p->cluster_size];
+
+  error = __fat32_read_cluster(fs, &cluster_buffer, last_cluster);
+
+  if (error)
+    return error;
+
+  current_dir_entry_idx = 0;
+  potential_dir_entry_count = p->cluster_size / sizeof(fat_dir_entry_t);
+
+  /* Loop over the dir entries in this cluster until we find one without a name (meaning that one marks the end) */
+  while (current_dir_entry_idx < potential_dir_entry_count) {
+
+    current_dir_entry = (fat_dir_entry_t*)(&cluster_buffer[current_dir_entry_idx * sizeof(fat_dir_entry_t)]);
+
+    if (current_dir_entry->dir_name[0] == 0x00)
+      break;
+
+    current_dir_entry_idx++;
+  }
+
+  /*
+   * Can we steal from this cluster or do we have to append a new one?
+   */
+  if (current_dir_entry_idx < potential_dir_entry_count) {
+    /* Copy the entry into our cluster */
+    memcpy(current_dir_entry, entry, sizeof(fat_dir_entry_t));
+
+    /* (TODO) Write the cluster back to disk (and sync?) */
+    error = __fat32_write_cluster(fs, cluster_buffer, last_cluster);
+  } else {
+    return -5;
+  }
+
+  return error;
 }
 
 /*!
@@ -152,14 +376,18 @@ __fat32_cache_cluster_chain(light_fs_t* fs, light_file_t* file, uint32_t start_c
     length++;
   }
 
+  /* Set correct lengths */
+  ffile->cluster_chain_length = length;
+
+  /* Files can have a length of zero */
+  if (!length)
+    return 0;
+
   /* Reset buffer */
   buffer = start_cluster;
 
   /* Allocate chain */
   ffile->cluster_chain = heap_allocate(length * sizeof(uint32_t));
-
-  /* Set correct lengths */
-  ffile->cluster_chain_length = length;
 
   /* Loop and store the clusters */
   for (uint32_t i = 0; i < length; i++) {
@@ -218,10 +446,14 @@ __fat32_load_clusters(light_fs_t* fs, void* buffer, fat_file_t* file, uint32_t s
   return 0;
 }
 
-static int
+/*!
+ * @brief: Transform a regular path into a FAT compliant path
+ *
+ * @returns: Wether we found a file extention or not
+ */
+static bool
 transform_fat_filename(char* dest, const char* src) 
 {
-
   uint32_t i = 0;
   uint32_t src_dot_idx = 0;
 
@@ -233,7 +465,7 @@ transform_fat_filename(char* dest, const char* src)
   while (src[src_dot_idx + i]) {
     // limit exceed
     if (i >= 11 || (i >= 8 && !found_ext)) {
-      return 0;
+      return found_ext;
     }
 
     // we have found the '.' =D
@@ -252,7 +484,7 @@ transform_fat_filename(char* dest, const char* src)
     }
   }
 
-  return 0;
+  return found_ext;
 }
 
 static int 
@@ -284,7 +516,8 @@ __fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t
 
   error = __fat32_cache_cluster_chain(fs, &tmp, cluster_num);
 
-  if (error)
+  /* Dir entries can't have a chain length of zero here lol */
+  if (error || !tmp_ffile.cluster_chain_length)
     goto fail_dealloc_cchain;
 
   clusters_size = tmp_ffile.cluster_chain_length * p->cluster_size;
@@ -297,11 +530,7 @@ __fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t
   if (error)
     goto fail_dealloc_dir_entries;
 
-  error = transform_fat_filename(transformed_buffer, rel_path);
-
-  /* Only fail if we don't support lfn here. If this fails while we support lfn, we can just use the rel_path as-is */
-  if (error && (p->flags & FAT_FLAG_NO_LFN) == FAT_FLAG_NO_LFN)
-    goto fail_dealloc_dir_entries;
+  (void)transform_fat_filename(transformed_buffer, rel_path);
 
   /* Loop over all the directory entries and check if any paths match ours */
   for (uint32_t i = 0; i < dir_entries_count; i++) {
@@ -439,7 +668,8 @@ fat32_open(light_fs_t* fs, char* path)
       /* Make sure the file knows about its cluster chain */
       error = __fat32_cache_cluster_chain(fs, file, (current.dir_frst_cluster_lo | (current.dir_frst_cluster_hi << 16)));
 
-      if (error)
+      /* Only if we failed to read a file with bytes lmao */
+      if (error && current.filesize_bytes)
         goto fail_and_deallocate;
 
       file->filesize = current.filesize_bytes;
@@ -468,6 +698,67 @@ fail_and_deallocate:
   return nullptr;
 }
 
+static int
+fat32_create_path(light_fs_t* fs, const char* path)
+{
+  /* Include 0x00 byte */
+  int error;
+  const size_t path_size = strlen(path) + 1;
+
+  if (path_size >= FAT32_MAX_FILENAME_LENGTH)
+    return -3;
+
+  char path_buffer[path_size];
+  fat_private_t* p;
+
+  memcpy(path_buffer, path, path_size);
+
+  p = fs->private;
+
+  uintptr_t current_idx = 0;
+  fat_dir_entry_t current = p->root_entry;
+
+  /* Do opening lmao */
+
+  for (uintptr_t i = 0; i < path_size; i++) {
+
+    /* Stop either at the end, or at any '/' char */
+    if (path_buffer[i] != '/' && path_buffer[i] != '\0')
+      continue;
+
+    /* Place a null-byte */
+    path_buffer[i] = '\0';
+
+    /* Keep opening shit until we fail lmao */
+    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx]);
+
+    /* yay, this one does not exist! */
+    if (error) {
+
+      /* We're in a directory right now, so let's just copy the attributes of our bby */
+      fat_dir_entry_t new_entry = { 0 };
+
+      if (!transform_fat_filename((char*)new_entry.dir_name, &path_buffer[current_idx]))
+        new_entry.dir_attr |= FAT_ATTR_DIRECTORY;
+
+      error = __fat32_dir_append_entry(fs, &current, &new_entry);
+
+      if (error)
+        return error;
+    }
+
+    /* Set the current index if we have successfuly 'switched' directories */
+    current_idx = i + 1;
+
+    /*
+     * Place back the slash
+     */
+    path_buffer[i] = '/';
+  }
+
+  return 0;
+}
+
 int 
 fat32_close(light_fs_t* fs, light_file_t* file)
 {
@@ -483,6 +774,7 @@ light_fs_t fat32_fs =
   .f_probe = fat32_probe,
   .f_open = fat32_open,
   .f_close = fat32_close,
+  .f_create_path = fat32_create_path,
 };
 
 void 

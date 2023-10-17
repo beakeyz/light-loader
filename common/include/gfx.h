@@ -98,6 +98,7 @@ void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color
 void gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr);
 
 void gfx_draw_rect_raw(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, uint32_t clr);
+void gfx_draw_rect_img(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t* clrs);
 void gfx_draw_rect(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr);
 void gfx_draw_rect_outline(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t height, light_color_t clr);
 void gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light_color_t clr);

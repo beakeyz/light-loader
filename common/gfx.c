@@ -152,10 +152,41 @@ gfx_draw_rect_raw(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, ui
       if (!gfx->back_fb || !gfx->ctx->has_fw) {
         /* Direct access */
         *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-        return;
+      } else {
+        *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
       }
 
-      *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+      /* When we are not drawing the cursor, we should look for any pixel updates */
+      if (!gfx_is_drawing_cursor(gfx))
+        update_cursor_pixel(gfx, x, y);
+    }
+  }
+}
+
+void 
+gfx_draw_rect_img(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, uint32_t* clrs)
+{
+  uint32_t x;
+  uint32_t y;
+  uint32_t clr;
+
+  for (uint32_t i = 0; i < height; i++) {
+    for (uint32_t j = 0; j < width; j++) {
+
+      clr = clrs[i * height + j];
+      
+      x = _x + j;
+      y = _y + i;
+
+      if (x >= gfx->width || y >= gfx->height)
+        return;
+
+      if (!gfx->back_fb || !gfx->ctx->has_fw) {
+        /* Direct access */
+        *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+      } else {
+        *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
+      }
 
       /* When we are not drawing the cursor, we should look for any pixel updates */
       if (!gfx_is_drawing_cursor(gfx))

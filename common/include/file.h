@@ -27,4 +27,6 @@ int fwrite(light_file_t* file, void* buffer, size_t size, uintptr_t offset);
 
 struct light_file* fopen(char* path);
 
+int fcreate(const char* path);
+
 #endif // !__LIGHTLOADER_FILE__

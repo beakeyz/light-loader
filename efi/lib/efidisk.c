@@ -25,7 +25,6 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
 {
   int error;
   uintptr_t start_block;
-  uintptr_t current_transfer_factor;
   uint8_t cache_idx = disk_select_cache(dev, block);
 
   if (!dev->cache.cache_ptr[cache_idx])
@@ -36,21 +35,14 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
     goto success;
 
   start_block = dev->first_sector / (dev->sector_size / 512);
-  current_transfer_factor = dev->optimal_transfer_factor;
 
   disk_clear_cache(dev, block);
 
-  while (1) {
-    error = dev->f_bread(dev, dev->cache.cache_ptr[cache_idx], current_transfer_factor, start_block + block * dev->optimal_transfer_factor);
+  /* Read one block */
+  error = dev->f_bread(dev, dev->cache.cache_ptr[cache_idx], 1, start_block + block);
 
-    if (!error)
-      break;
-
-    if (current_transfer_factor)
-      current_transfer_factor--;
-    else
-      goto out;
-  }
+  if (error)
+    goto out;
 
 success:
   dev->cache.cache_dirty_flags |= (1 << cache_idx);
@@ -70,7 +62,7 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
   uint8_t current_cache_idx;
 
   current_offset = 0;
-  lba_size = dev->optimal_transfer_factor * dev->sector_size;
+  lba_size = dev->sector_size;
 
   while (current_offset < size) {
     current_block = (offset + current_offset) / lba_size;
@@ -98,6 +90,40 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
 static int
 __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
 {
+  uint64_t current_block, current_offset, current_delta;
+  uint64_t lba_size, read_size;
+  uint8_t current_cache_idx;
+
+  current_offset = 0;
+  lba_size = dev->sector_size;
+
+  while (current_offset < size) {
+    current_block = (offset + current_offset) / lba_size;
+    current_delta = (offset + current_offset) % lba_size;
+
+    /* Grab the block either from cache or from disk */
+    current_cache_idx = __cached_read(dev, current_block);
+
+    /* Fuck */
+    if (current_cache_idx == 0xFF)
+      return -1;
+
+    read_size = size - current_offset;
+
+    /* Constantly shave off lba_size */
+    if (read_size > lba_size - current_delta)
+      read_size = lba_size - current_delta;
+
+    /* Copy from our buffer into the cache */
+    memcpy(&(dev->cache.cache_ptr[current_cache_idx])[current_delta], buffer + current_offset, read_size);
+
+    /* Try to write this fucker to disk lol */
+    if (dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block))
+      return -2;
+
+    current_offset += read_size;
+  }
+
   return 0;
 }
 
@@ -109,7 +135,7 @@ __bread(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 
   stuff = dev->private;
 
-  status = stuff->blockio->ReadBlocks(stuff->blockio, stuff->media->MediaId, lba, count * dev->sector_size, buffer);
+  status = stuff->blockio->ReadBlocks(stuff->blockio, stuff->media->MediaId, lba * dev->optimal_transfer_factor, count * dev->sector_size, buffer);
 
   if (EFI_ERROR(status))
     return -1;
@@ -125,7 +151,7 @@ __bwrite(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 
   stuff = dev->private;
 
-  status = stuff->blockio->WriteBlocks(stuff->blockio, stuff->media->MediaId, lba, count * dev->sector_size, buffer);
+  status = stuff->blockio->WriteBlocks(stuff->blockio, stuff->media->MediaId, lba * dev->optimal_transfer_factor, count * dev->sector_size, buffer);
 
   if (EFI_ERROR(status))
     return -1;
@@ -159,19 +185,20 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   ret->private = efi_private;
 
   ret->total_size = media->LastBlock * media->BlockSize;
-  ret->sector_size = media->BlockSize;
   ret->first_sector = 0;
 
   ret->optimal_transfer_factor = media->OptimalTransferLengthGranularity;
 
   /* Clamp the transfer size */
-  if (ret->optimal_transfer_factor == 0)    ret->optimal_transfer_factor = 64;
+  if (ret->optimal_transfer_factor == 0)    ret->optimal_transfer_factor = 32;
   if (ret->optimal_transfer_factor > 512)   ret->optimal_transfer_factor = 512;
 
+  ret->sector_size = media->BlockSize * ret->optimal_transfer_factor;
+
   ret->f_read = __read;
-  ret->f_write = NULL;
+  ret->f_write = __write;
   ret->f_bread = __bread;
-  ret->f_bwrite = NULL;
+  ret->f_bwrite = __bwrite;
 
   disk_init_cache(ret);
 
@@ -180,6 +207,11 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
 
 #define MAX_PARTITION_COUNT 64
 
+/*!
+ * @brief: Initialize the filesystem and stuff on the 'disk device' (really just the partition) we booted off
+ *
+ * This creates a disk device and tries to mount a filesystem
+ */
 void
 init_efi_bootdisk()
 {
@@ -194,13 +226,15 @@ init_efi_bootdisk()
     return;
 
   /*
-   * NOTE: The 'bootdevice' is actually the bootpartition
+   * NOTE: The 'bootdevice' is actually the bootpartition, so don't go trying to look
+   * for a partitioning sceme on this 'disk' LMAO
    */
   disk_dev_t* bootdevice = create_efi_disk(efi_ctx->bootdisk_block_io, efi_ctx->bootdisk_io);
 
   if (!bootdevice)
     return;
 
+  /* UEFI Gives us a handle to our partition, not the entire disk lol */
   bootdevice->flags |= DISK_FLAG_PARTITION;
 
   register_bootdevice(bootdevice);

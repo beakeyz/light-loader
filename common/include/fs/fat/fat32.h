@@ -36,6 +36,7 @@ typedef struct {
       uint16_t heads_num;
       uint32_t hidden_sector_num;
       uint32_t sector_num_fat32;
+
       uint32_t sectors_num_per_fat;
       uint16_t ext_flags;
       uint16_t fs_version;

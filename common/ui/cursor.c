@@ -67,12 +67,7 @@ draw_cursor(light_gfx_t* gfx, uint32_t x, uint32_t y)
   if (!has_cache)
     goto do_redraw;
 
-  /* Draw back pixels if we have them */
-  for (uint32_t i = 0; i < DEFAULT_CURSOR_HEIGHT; i++) {
-    for (uint32_t j = 0; j < DEFAULT_CURSOR_WIDTH; j++) {
-      gfx_draw_rect_raw(gfx, old_x + j, old_y + i, 1, 1, cursor_backbuffer[cache_idx++]);
-    }
-  }
+  gfx_draw_rect_img(gfx, old_x, old_y, DEFAULT_CURSOR_WIDTH, DEFAULT_CURSOR_HEIGHT, cursor_backbuffer);
 
 do_redraw:
   cache_idx = 0;

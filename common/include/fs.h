@@ -22,7 +22,11 @@ struct light_file;
 /*
  * The Lightloader Filesystem model
  *
- * Filesystems under the lightloader function a little different than in normal for any OS.
+ * TODO: we gotta change this model a bit if we want to support bootloader-based installing of the system
+ * onto physical disk drives, since both the boot device and the install target may use the same filesyste 
+ * and under this model we would not be able to copy files between the two
+ *
+ * Filesystems under the lightloader function a little different than in normal for any OS / Bootloader.
  * We provide a bunch of filesystem types which are only able to be 'mounted' once. Filesystems are
  * supposed to provide a structured I/O platform for lts devices, but for a bootloader, there
  * really should only be once filesystem/disk/partition that we are interested in: the bootpartition.
@@ -42,8 +46,15 @@ typedef struct light_fs {
 
   uint8_t fs_type;
   
+  /* Open an existing filesystem object */
   struct light_file* (*f_open)(struct light_fs* fs, char* path);
+  /* Create the path specified inside the filesystem */
+  int (*f_create_path)(struct light_fs* fs, const char* path);
+  /* Remove a path inside the filesystem */
+  int (*f_remove_path)(struct light_fs* fs, const char* path);
+  /* Close an opend filesytem object */
   int (*f_close)(struct light_fs* fs, struct light_file*);
+  /* Probe the disk for this filesystem */
   int (*f_probe)(struct light_fs* fs, struct disk_dev* device);
 
   struct light_fs* next;
