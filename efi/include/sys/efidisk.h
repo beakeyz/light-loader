@@ -9,5 +9,6 @@ typedef struct efi_disk_stuff {
 } efi_disk_stuff_t;
 
 void init_efi_bootdisk();
+void efi_discover_present_diskdrives();
 
 #endif // !__LIGHTLOADER_EFIDISK__

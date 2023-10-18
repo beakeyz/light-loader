@@ -43,8 +43,13 @@ typedef struct light_ctx {
   /*
    * Put a reference to the disk structure that we where loaded 
    * from (and thus where the kernel is still chilling) 
+   * (EFI gives us the handle to a partition, so TODO rename this variable)
    */
   disk_dev_t* disk_handle;
+
+  /* Array of all the (physical) disk drives we found on the system */
+  disk_dev_t** present_disk_list;
+  uint32_t present_disk_count;
   
   /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
   int (*f_fw_exit)();

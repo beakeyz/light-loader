@@ -202,6 +202,9 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   /* Grab some system information */
   get_light_ctx()->f_gather_sys_info();
 
+  /* Find some more info about the physical drives */
+  efi_discover_present_diskdrives();
+
   /* Enter the frontend for user interaction */
   result = gfx_enter_frontend();
   //result = BOOT_MULTIBOOT;

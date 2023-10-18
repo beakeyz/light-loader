@@ -5,10 +5,11 @@
 #include <stdint.h>
 
 struct light_ctx;
+struct disk_dev;
 
 typedef enum LIGHT_BOOT_METHOD {
   LBM_MULTIBOOT2 = 0,   /* Load a kernel with the multiboot2 protocol */
-  LBM_RAW,              /* Load a kernel without any protocol, only raw execute */
+  LBM_RAW,              /* Load a kernel without any protocol, only raw execute (TODO: implement?) */
   LBM_REBOOT,           /* No further booting, simply reset and let EFI reboot */
 } LIGHT_BOOT_METHOD_t;
 

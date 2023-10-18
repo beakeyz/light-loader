@@ -13,6 +13,7 @@
 #include "ui/image.h"
 #include "ui/input_box.h"
 #include "ui/screens/home.h"
+#include "ui/screens/install.h"
 #include "ui/screens/options.h"
 #include <gfx.h>
 #include <memory.h>
@@ -32,16 +33,19 @@ static light_component_t* current_selected_inputbox;
 
 #define SCREEN_HOME_IDX 0
 #define SCREEN_OPTIONS_IDX 1
+#define SCREEN_INSTALL_IDX 2
 
 /* The different components that can be mounted as screenroot */
 static light_component_t* screens[] = {
   [SCREEN_HOME_IDX] = nullptr,
   [SCREEN_OPTIONS_IDX] = nullptr,
+  [SCREEN_INSTALL_IDX] = nullptr,
 };
 
 static char* screen_labels[] = {
   [SCREEN_HOME_IDX] = "res/home.bmp",
   [SCREEN_OPTIONS_IDX] = "res/opt.bmp",
+  [SCREEN_INSTALL_IDX] = "res/instl.bmp"
 };
 
 static const size_t screens_count = sizeof screens / sizeof screens[0];
@@ -329,6 +333,8 @@ gfx_printf(char* str, ...)
    *  - the forground color and background color
    */
   gfx_draw_str(&light_gfx, str, printf_x, printf_y, WHITE);
+
+  gfx_switch_buffers(&light_gfx);
 
   printf_y += light_gfx.current_font->height;
   printf_x = 4;
@@ -651,7 +657,7 @@ gfx_enter_frontend()
   /* Navigation buttons */
   for (uint32_t i = 0; i < screens_count; i++) {
     const uint32_t btn_width = 36;
-    const uint32_t initial_offset = 2;
+    const uint32_t initial_offset = 4;
 
     /* Add btn_width for every screen AND add the initial offset times the amount of buttons before us */
     uint32_t x_offset = i * btn_width + initial_offset * (i + 1);
@@ -664,6 +670,9 @@ gfx_enter_frontend()
 
   /* Create a box for the options screen */
   construct_optionsscreen(&screens[SCREEN_OPTIONS_IDX], &light_gfx);
+
+  /* Create a box for the install screen */
+  construct_installscreen(&screens[SCREEN_INSTALL_IDX], &light_gfx);
 
   /*
    * Create the screen link, which never gets rendered, but simply acts as a connector for the screens to 

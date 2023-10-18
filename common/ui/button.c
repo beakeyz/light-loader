@@ -37,6 +37,7 @@ create_button(light_component_t** link, char* label, uint32_t x, uint32_t y, uin
 
   btn->parent = parent;
   btn->f_click_func = onclick;
+  btn->type = BTN_TYPE_NORMAL;
 
   parent->f_should_update = btn_should_update;
   parent->private = btn;
@@ -55,6 +56,7 @@ draw_tab_btn(light_component_t* c)
   if (component_is_hovered(c)) {
     gfx_draw_rect_outline(c->gfx, c->x, c->y, c->width, c->height, BLACK);
     gfx_draw_rect(c->gfx, c->x, c->y + c->height - 2, c->width, 2, BLACK);
+    gfx_draw_rect(c->gfx, c->x + c->width - 2, c->y, 2, c->height, BLACK);
   }
 
   if (priv->icon_image) {
@@ -88,6 +90,105 @@ create_tab_button(light_component_t** link, char* label, uint32_t x, uint32_t y,
 
   /* For tabs, we can simply store the target index directly in ->private */
   ret->private = (uint64_t)priv;
+  ret->type = BTN_TYPE_TAB;
+
+  return ret;
+}
+
+/*!
+ * @brief: Flick that switch 
+ *
+ * This is called right before we update the pixels, so we can simply
+ * toggle the boolean value and the draw function will update accordingly
+ */
+int 
+switch_onclick(button_component_t* comp)
+{
+  /* Return value of this function is often ignored, but still */
+  if (comp->type != BTN_TYPE_SWITCH)
+    return -1;
+
+  bool* value = (bool*)comp->private;
+
+  if (!value)
+    return -1;
+
+  /* Epic toggle */
+  *value = !(*value);
+
+  return 0;
+}
+
+/*
+ * ------------------------------------------------
+ * <label>                                  [-/O] | <height>
+ * -----------------------------------------------
+ *                      <width>
+ * This is kinda how the switch should look (schematically)
+ */
+int 
+switch_draw(light_component_t* comp)
+{
+  bool status;
+  button_component_t* btn;
+  const uint32_t switch_width = 42;
+  const uint32_t switch_height = 24;
+  const uint32_t switch_padding = 8;
+  const uint32_t switch_x = comp->x + comp->width - switch_width - switch_padding;
+  const uint32_t switch_y = comp->y + comp->height - switch_height - (comp->height - switch_height) / 2;
+
+  /* Fuck you lmao */
+  if (switch_height > comp->height)
+    return -1;
+
+  /* Yikes lol */
+  if (comp->type != COMPONENT_TYPE_BUTTON)
+    return -1;
+  
+  btn = comp->private;
+  status = *(bool*)btn->private;
+
+  /* Gray box =) */
+  gfx_draw_rect(comp->gfx, comp->x, comp->y, comp->width, comp->height, GRAY);
+  /* Black outline =) */
+  gfx_draw_rect_outline(comp->gfx, comp->x, comp->y, comp->width, comp->height, BLACK);
+
+  /* If there is a label, we'll draw that first on the left side */
+  if (comp->label) {
+    uint32_t label_draw_x = 4;
+    uint32_t label_draw_y = (comp->height >> 1) - (comp->gfx->current_font->height >> 1);
+
+    component_draw_string_at(comp, comp->label, label_draw_x, label_draw_y, WHITE);
+  }
+
+  /* Switch box */
+  gfx_draw_rect(comp->gfx, switch_x, switch_y, switch_width, switch_height, DARK_GRAY);
+
+  if (status) {
+    gfx_draw_rect_outline(comp->gfx, switch_x, switch_y, switch_width, switch_height, GREEN);
+  } else {
+    gfx_draw_rect_outline(comp->gfx, switch_x, switch_y, switch_width, switch_height, RED);
+  }
+
+  return 0;
+}
+
+button_component_t* 
+create_switch(light_component_t** link, char* label, uint32_t x, uint32_t y, uint32_t width, uint32_t height, bool* value)
+{
+  button_component_t* ret;
+
+  if (!link)
+    return nullptr;
+
+  ret = create_button(link, label, x, y, width, height, switch_onclick, switch_draw);
+
+  if (!ret) 
+    return nullptr;
+
+  /* For tabs, we can simply store the target index directly in ->private */
+  ret->private = (uintptr_t)value;
+  ret->type = BTN_TYPE_SWITCH;
 
   return ret;
 }

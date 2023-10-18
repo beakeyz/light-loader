@@ -29,6 +29,8 @@ int open_test_onclick(button_component_t* comp)
   return 0;
 }
 
+bool sicko = false;
+
 /*
  * Options we need to implement:
  *  - resolution
@@ -41,9 +43,12 @@ int open_test_onclick(button_component_t* comp)
 int 
 construct_optionsscreen(light_component_t** root, light_gfx_t* gfx)
 {
+  sicko = false;
 
   create_button(root, "Test fat", 50, 50, 156, 26, test_onclick, nullptr);
   create_button(root, "Open Test fat", 50, 80, 156, 26, open_test_onclick, nullptr);
+
+  create_switch(root, "Fuc you", 50, 140, 245, 36, &sicko);
 
   /* TODO: ... */
   return 0;

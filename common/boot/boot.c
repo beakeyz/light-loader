@@ -30,6 +30,7 @@ panic(char* msg)
   get_light_gfx(&gfx);
 
   /* Print n switch */
+  printf(" * Lightloader panic: ");
   printf(msg);
   gfx_switch_buffers(gfx);
 
@@ -308,6 +309,12 @@ boot_context_configuration(light_ctx_t* ctx)
   if (!config->ramdisk_file)
     config->ramdisk_file = (char*)default_ramdisk_path;
 
+  /* Get the GFX in preperation for multiboot stuff */
+  get_light_gfx(&gfx);
+
+  /* Clear the framebuffer here so that panics get displayed properly */
+  gfx_clear_screen(gfx);
+
   /* Open the kernel file */
   kernel_file = fopen(config->kernel_file);
 
@@ -368,7 +375,7 @@ boot_context_configuration(light_ctx_t* ctx)
   new_bootstub_loc = relocate_bootstub();
 
   if (!new_bootstub_loc)
-    panic("Could reallocate bootstub (NOMEM?)");
+    panic("Couldn't relocate bootstub (NOMEM?)");
 
   /* Prepare our multiboot buffer */
   new_multiboot_loc = prepare_multiboot_buffer(&relocations);
@@ -380,9 +387,6 @@ boot_context_configuration(light_ctx_t* ctx)
 
   if (!new_ramdisk_loc)
     panic("Failed to relocate the ramdisk!");
-
-  /* Get the GFX in preperation for multiboot stuff */
-  get_light_gfx(&gfx);
 
   /* With the first tag we will identify ourselves */
   const char* loader_name = "__LightLoader__";
@@ -464,9 +468,7 @@ boot_context_configuration(light_ctx_t* ctx)
 
   struct multiboot_tag* end_tag = add_multiboot_tag(0, sizeof(struct multiboot_tag));
 
-  /* Clear the framebuffer right before we jump to the kernel */
-  gfx_clear_screen(gfx);
-
+  /* Call our muiltiboot bootstub =) */
   multiboot2_boot_entry(
       (uint32_t)kernel_entry,
       (uint32_t)(uintptr_t)relocations,
