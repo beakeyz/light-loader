@@ -130,6 +130,10 @@ cache_gpt_header(disk_dev_t* device)
 {
   int error;
 
+  /* LMAO */
+  if (device->flags & DISK_FLAG_PARTITION)
+    return;
+
   uint32_t lb_size = 0;
   uint32_t lb_guesses[] = {
     512,
@@ -142,7 +146,7 @@ cache_gpt_header(disk_dev_t* device)
   for (size_t i = 0; i < (sizeof(lb_guesses) / sizeof(uint32_t)); i++) {
 
     /* Read one block */
-    error = device->f_bread(device, buffer, 1, lb_guesses[i] / device->sector_size);
+    error = device->f_read(device, buffer, lb_guesses[i], sizeof(gpt_header_t));
 
     if (error)
       return;
@@ -184,4 +188,56 @@ cache_gpt_entry(disk_dev_t* device)
     if (i % 24 == 0)
       printf(" | ");
   }
+}
+
+void
+disk_install_partitions(disk_dev_t* device)
+{
+  light_ctx_t* ctx;
+  gpt_header_t header_template;
+  gpt_entry_t current_entry;
+  uint32_t partition_count;
+  uint32_t total_required_size;
+
+  /* Can't install to a partition lmao */
+  if ((device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
+    return;
+
+  ctx = get_light_ctx();
+  partition_count = 4;
+  total_required_size = ALIGN_UP(sizeof(header_template), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);;
+
+  /* Prevent accidental installations */
+  if (!ctx->install_confirmed)
+    return;
+
+  /*
+   * TODO: CRCs????
+   */
+
+  /* Let's check if this disk already has a GPT header set up */
+  cache_gpt_header(device);
+
+  /* Great, we only need to write a little bit of stuff! */
+  if (device->partition_header && memcmp(device->partition_header->signature, "EFI PART", 8)) {
+
+    for (uint32_t i = 0; i < device->partition_header->partition_entry_num; i++) {
+      // TODO:
+    }
+
+    return;
+  }
+
+  /* Bruh, we need to setup an entire GPT header + entries ourselves -_- */
+  memset(&header_template, 0, sizeof(header_template));
+
+  memcpy(&header_template.signature, "EFI PART", 8);
+
+  /* Protective MBR should be created at lba 0 */
+  header_template.my_lba = 1;
+  header_template.alt_lba = -1;
+
+  printf("Fuck, no GPT to yoink on that disk =/");
+  for (;;) {}
+
 }

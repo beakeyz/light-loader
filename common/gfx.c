@@ -652,7 +652,7 @@ gfx_enter_frontend()
   create_image(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, IMAGE_TYPE_BMP, "res/bckgrnd.bmp");
 
   /* Navigation bar */
-  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 38, 0, true, GRAY);
+  create_box(&root_component, nullptr, 0, 0, light_gfx.width, 42, 0, true, GRAY);
 
   /* Navigation buttons */
   for (uint32_t i = 0; i < screens_count; i++) {
@@ -662,7 +662,7 @@ gfx_enter_frontend()
     /* Add btn_width for every screen AND add the initial offset times the amount of buttons before us */
     uint32_t x_offset = i * btn_width + initial_offset * (i + 1);
 
-    create_tab_button(&root_component, screen_labels[i], x_offset, 1, btn_width, 36, tab_btn_onclick, i);
+    create_tab_button(&root_component, screen_labels[i], x_offset, 3, btn_width, 36, tab_btn_onclick, i);
   }
 
   /* Create a box for the home screen */

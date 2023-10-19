@@ -29,6 +29,8 @@ typedef struct light_ctx {
 
   /* Do we still have firmware support? (Only really applicable for EFI) */
   bool has_fw;
+  /* Has the user confirmed that they want to install to disk permanently? */
+  bool install_confirmed;
 
   /* Put a reference to the memory map here */
   struct light_mmap_entry* mmap;

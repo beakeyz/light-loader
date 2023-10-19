@@ -198,6 +198,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   if (ret->optimal_transfer_factor == 0)    ret->optimal_transfer_factor = 32;
   if (ret->optimal_transfer_factor > 512)   ret->optimal_transfer_factor = 512;
 
+  ret->effective_sector_size = media->BlockSize;
   ret->sector_size = media->BlockSize * ret->optimal_transfer_factor;
 
   ret->f_read = __read;

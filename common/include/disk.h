@@ -16,6 +16,7 @@ typedef struct disk_dev {
   uintptr_t first_sector;
   size_t total_size;
   size_t sector_size;
+  size_t effective_sector_size;
   size_t total_sectors;
   uint32_t optimal_transfer_factor;
   uint32_t flags;
@@ -89,6 +90,20 @@ typedef struct gpt_header {
   uint32_t partition_entry_array_crc32;
   // the rest of the block is reserved by UEFI and must be zero
 }__attribute__((packed)) gpt_header_t;
+
+/*
+ * NOTE: Bits 48 to 63 are pretty much free to be used for whatever 
+ * we want, exept bit 60 to 63, since they are globally defined as 'standard'
+ * GPT attributes, wich means that biosses and EFI firmwares might act
+ * uppon these flags.
+ */
+#define GPT_ATTR_REQUIRED (1 << 0)
+#define GPT_ATTR_EFI_IGNORE (1 << 1)
+#define GPT_ATTR_BIOS_BOOTABLE (1 << 2)
+#define GPT_ATTR_READONLY (1 << 60)
+#define GPT_ATTR_SHADOWCOPY (1 << 61)
+#define GPT_ATTR_HIDDEN (1 << 62)
+#define GPT_ATTR_NO_DRIVER_LETTER (1 << 63)
 
 typedef struct gpt_entry {
 
