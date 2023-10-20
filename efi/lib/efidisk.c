@@ -190,6 +190,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   ret->private = efi_private;
 
   ret->total_size = media->LastBlock * media->BlockSize;
+  ret->total_sectors = media->LastBlock + 1;
   ret->first_sector = 0;
 
   ret->optimal_transfer_factor = media->OptimalTransferLengthGranularity;

@@ -17,6 +17,8 @@ Revision History
 
 --*/
 
+#include "efilib.h"
+
 #define PRIMARY_PART_HEADER_LBA         1
 
 typedef struct {

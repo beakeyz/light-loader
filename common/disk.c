@@ -1,4 +1,5 @@
 #include "disk.h"
+#include "efierr.h"
 #include "efilib.h"
 #include "gfx.h"
 #include "heap.h"
@@ -190,54 +191,80 @@ cache_gpt_entry(disk_dev_t* device)
   }
 }
 
-void
+int
 disk_install_partitions(disk_dev_t* device)
 {
+  EFI_STATUS s;
   light_ctx_t* ctx;
-  gpt_header_t header_template;
-  gpt_entry_t current_entry;
   uint32_t partition_count;
   uint32_t total_required_size;
+  void* gpt_buffer;
+  gpt_header_t* header_template;
+  gpt_entry_t* current_entry;
 
   /* Can't install to a partition lmao */
   if ((device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
-    return;
+    return -1;
 
   ctx = get_light_ctx();
-  partition_count = 4;
-  total_required_size = ALIGN_UP(sizeof(header_template), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);;
+  partition_count = 64;
+  total_required_size = ALIGN_UP(sizeof(gpt_header_t), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
 
   /* Prevent accidental installations */
   if (!ctx->install_confirmed)
-    return;
+    return -2;
+
+  /* Allocate a buffer that we can instantly write it all to disk */
+  gpt_buffer = heap_allocate(total_required_size);
+  
+  if (!gpt_buffer)
+    return -3;
+
+  memset(gpt_buffer, 0, total_required_size);
+
+  /* The header template will be at the top of the buffer */
+  header_template = (gpt_header_t*)gpt_buffer;
+  /* First entry will be at the start of the next lba after the header */
+  current_entry = (gpt_entry_t*)((uint8_t*)gpt_buffer + device->effective_sector_size);
 
   /*
    * TODO: CRCs????
    */
 
-  /* Let's check if this disk already has a GPT header set up */
-  cache_gpt_header(device);
-
-  /* Great, we only need to write a little bit of stuff! */
-  if (device->partition_header && memcmp(device->partition_header->signature, "EFI PART", 8)) {
-
-    for (uint32_t i = 0; i < device->partition_header->partition_entry_num; i++) {
-      // TODO:
-    }
-
-    return;
-  }
-
   /* Bruh, we need to setup an entire GPT header + entries ourselves -_- */
-  memset(&header_template, 0, sizeof(header_template));
+  memset(header_template, 0, sizeof(*header_template));
 
-  memcpy(&header_template.signature, "EFI PART", 8);
+  memcpy(header_template->signature, "EFI PART", 8);
 
   /* Protective MBR should be created at lba 0 */
-  header_template.my_lba = 1;
-  header_template.alt_lba = -1;
+  header_template->my_lba = 1;
+  header_template->alt_lba = -1;
 
-  printf("Fuck, no GPT to yoink on that disk =/");
+  header_template->partition_entry_num = partition_count;
+  header_template->partition_entry_size = sizeof(gpt_entry_t);
+  /* Right after the header */
+  header_template->partition_entry_lba = 2;
+
+  header_template->first_usable_lba = header_template->my_lba + (header_template->header_size + header_template->partition_entry_size * header_template->partition_entry_num) / device->effective_sector_size;
+  /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
+  header_template->last_usable_lba = device->total_sectors - 1;
+
+  header_template->revision = 0x00010000;
+  header_template->header_size = sizeof(*header_template);
+
+  uint32_t gpt_header_crc = 0;;
+
+  s = BS->CalculateCrc32(header_template, sizeof(*header_template), &gpt_header_crc);
+
+  if (EFI_ERROR(s))
+    return -4;
+
+  header_template->header_crc32 = gpt_header_crc;
+
+  /* Write the GPT partition header */
+  //device->f_write(device, block_buffer, device->effective_sector_size, device->effective_sector_size);
+
   for (;;) {}
 
+  heap_free(gpt_buffer);
 }

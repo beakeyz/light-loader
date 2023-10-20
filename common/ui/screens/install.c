@@ -200,7 +200,7 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
 
   create_switch(root, "I confirm that I want to install this operating system to the selected disks and I am okay with the data on this disk being erased", 24, gfx->height - 94, gfx->width - 24 * 2, 46, &ctx->install_confirmed);
 
-  create_button(root, "Install", (gfx->width >> 1) - 256 / 2, gfx->height - 28 - 8, 512, 28, install_btn_onclick, nullptr);
+  create_button(root, "Install", (gfx->width >> 1) - 256 / 2, gfx->height - 28 - 8, gfx->width >> 2, 28, install_btn_onclick, nullptr);
 
   return 0;
 }
