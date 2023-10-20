@@ -1,4 +1,5 @@
 #include "ctx.h"
+#include "disk.h"
 #include "gfx.h"
 #include "memory.h"
 #include "stddef.h"
@@ -198,7 +199,7 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
     current_btn->private = (uintptr_t)dev;
   }
 
-  create_switch(root, "I confirm that I want to install this operating system to the selected disks and I am okay with the data on this disk being erased", 24, gfx->height - 94, gfx->width - 24 * 2, 46, &ctx->install_confirmed);
+  create_switch(root, "I confirm my intentions", 24, gfx->height - 94, (gfx->width >> 2) - 24, 46, &ctx->install_confirmed);
 
   create_button(root, "Install", (gfx->width >> 1) - 256 / 2, gfx->height - 28 - 8, gfx->width >> 2, 28, install_btn_onclick, nullptr);
 
@@ -211,6 +212,17 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
 static int 
 perform_install()
 {
+  int error;
+
+  if (!current_device)
+    return -1;
+
+  error = disk_install_partitions((disk_dev_t*)current_device->private);
+
+  if (error)
+    return error;
+
+  return 0;
   /*
    * TODO: install =)
    *
@@ -225,5 +237,4 @@ perform_install()
    * 5) Copy files to our System partition and create files that we might need
    * 6) If any files are missing, try to download them?? (This would be psycho but mega cool)
    */
-  return -1;
 }

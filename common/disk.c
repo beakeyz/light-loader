@@ -1,7 +1,9 @@
 #include "disk.h"
 #include "efierr.h"
 #include "efilib.h"
+#include "efigpt.h"
 #include "gfx.h"
+#include "guid.h"
 #include "heap.h"
 #include "stddef.h"
 #include <memory.h>
@@ -9,6 +11,9 @@
 #include <stdio.h>
 
 disk_dev_t* bootdevice = nullptr;
+
+#define DISK_SYSTEM_INDEX 0
+#define diSK_DATA_INDEX 1
 
 void
 register_bootdevice(disk_dev_t* device)
@@ -191,16 +196,83 @@ cache_gpt_entry(disk_dev_t* device)
   }
 }
 
+static void
+gpt_entry_set_partition_name(gpt_entry_t* entry, const char* name)
+{
+  if (name && strlen(name) > sizeof(entry->partition_name))
+    name = nullptr;
+
+  memset(entry->partition_name, 0, sizeof(entry->partition_name));
+
+  if (name)
+    memcpy(entry->partition_name, name, strlen(name));
+}
+
+/*!
+ * @brief: Set the data of a particular gpt entry
+ *
+ * @start_offset: The start offset on disk of the partition (This will be rounded down to fit the disks sector boundary)
+ * @size: The size in bytes of the partition
+ */
+static gpt_entry_t* 
+disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char* name, uintptr_t start_offset, size_t size, uintptr_t attrs, guid_t guid)
+{
+  entry->attributes = attrs;
+  entry->starting_lba = ALIGN_DOWN(start_offset, device->effective_sector_size) / device->effective_sector_size;
+  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
+
+  /* Make sure to clamp the end lba */
+  if (entry->ending_lba >= device->total_sectors)
+    entry->ending_lba = device->total_sectors - 1;
+
+  entry->unique_partition_guid = guid;
+
+  gpt_entry_set_partition_name(entry, name);
+
+  return entry;
+}
+
+/*!
+ * @brief: Get the needed size for a certain partition entry index
+ *
+ * For some entries we need to calculate how much space all the files are going to take
+ */
+static size_t
+gpt_entry_get_size(uint32_t entry_index)
+{
+  switch (entry_index) {
+    case DISK_SYSTEM_INDEX:
+      {
+        /* TODO: figure out how big the system index needs to be */
+        return 0;
+      }
+    case diSK_DATA_INDEX:
+      {
+        /* TODO: figure out how big the data index needs to be */
+        return 0;
+      }
+  }
+  return 0;
+}
+
+static inline uintptr_t
+gpt_entry_get_end_offset(disk_dev_t* device, gpt_entry_t* entry)
+{
+  return (entry->ending_lba + 1) * device->effective_sector_size;
+}
+
 int
 disk_install_partitions(disk_dev_t* device)
 {
   EFI_STATUS s;
+  uint32_t crc_buffer;
   light_ctx_t* ctx;
   uint32_t partition_count;
   uint32_t total_required_size;
   void* gpt_buffer;
   gpt_header_t* header_template;
-  gpt_entry_t* current_entry;
+  gpt_entry_t* entry_start;
+  gpt_entry_t* previous_entry;
 
   /* Can't install to a partition lmao */
   if ((device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
@@ -208,6 +280,7 @@ disk_install_partitions(disk_dev_t* device)
 
   ctx = get_light_ctx();
   partition_count = 64;
+  crc_buffer = 0;
   total_required_size = ALIGN_UP(sizeof(gpt_header_t), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
 
   /* Prevent accidental installations */
@@ -225,7 +298,7 @@ disk_install_partitions(disk_dev_t* device)
   /* The header template will be at the top of the buffer */
   header_template = (gpt_header_t*)gpt_buffer;
   /* First entry will be at the start of the next lba after the header */
-  current_entry = (gpt_entry_t*)((uint8_t*)gpt_buffer + device->effective_sector_size);
+  entry_start = (gpt_entry_t*)((uint8_t*)gpt_buffer + device->effective_sector_size);
 
   /*
    * TODO: CRCs????
@@ -252,19 +325,44 @@ disk_install_partitions(disk_dev_t* device)
   header_template->revision = 0x00010000;
   header_template->header_size = sizeof(*header_template);
 
-  uint32_t gpt_header_crc = 0;;
+  /* Clear all the partitions */
+  for (uint32_t i = 0; i < partition_count; i++) {
+    gpt_entry_t* this_entry = &entry_start[i];
 
-  s = BS->CalculateCrc32(header_template, sizeof(*header_template), &gpt_header_crc);
+    /* Zero =) */
+    memset(this_entry, 0, sizeof(*this_entry));
+  }
 
-  if (EFI_ERROR(s))
+  /* Realistically, the kernel + bootloader should not take more space than this */
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN | GPT_ATTR_BIOS_BOOTABLE, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+
+  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 256ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+
+  /* Create a CRC of the partition entries */
+  s = BS->CalculateCrc32(entry_start, partition_count * sizeof(gpt_entry_t), &crc_buffer);
+
+  if (EFI_ERROR(s)) {
+    heap_free(gpt_buffer);
     return -4;
+  }
 
-  header_template->header_crc32 = gpt_header_crc;
+  header_template->partition_entry_array_crc32 = crc_buffer;
+  crc_buffer = 0;
 
-  /* Write the GPT partition header */
-  //device->f_write(device, block_buffer, device->effective_sector_size, device->effective_sector_size);
+  /* Create a CRC of the header */
+  s = BS->CalculateCrc32(header_template, sizeof(*header_template), &crc_buffer);
 
-  for (;;) {}
+  if (EFI_ERROR(s)) {
+    heap_free(gpt_buffer);
+    return -5;
+  }
+
+  header_template->header_crc32 = crc_buffer;
+
+  /* Write this on lba 1 =) */
+  device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
 
   heap_free(gpt_buffer);
+
+  return 0;
 }

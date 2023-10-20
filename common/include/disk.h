@@ -69,6 +69,8 @@ int disk_init_cache(disk_dev_t* device);
 uint8_t disk_select_cache(disk_dev_t* device, uint64_t block);
 int disk_clear_cache(disk_dev_t* device, uint64_t block);
 
+int disk_install_partitions(disk_dev_t* device);
+
 typedef struct gpt_header {
   uint8_t signature[8];
   uint32_t revision;
@@ -100,10 +102,10 @@ typedef struct gpt_header {
 #define GPT_ATTR_REQUIRED (1 << 0)
 #define GPT_ATTR_EFI_IGNORE (1 << 1)
 #define GPT_ATTR_BIOS_BOOTABLE (1 << 2)
-#define GPT_ATTR_READONLY (1 << 60)
-#define GPT_ATTR_SHADOWCOPY (1 << 61)
-#define GPT_ATTR_HIDDEN (1 << 62)
-#define GPT_ATTR_NO_DRIVER_LETTER (1 << 63)
+#define GPT_ATTR_READONLY           0x1000000000000000ULL
+#define GPT_ATTR_SHADOWCOPY         0x2000000000000000ULL
+#define GPT_ATTR_HIDDEN             0x4000000000000000ULL 
+#define GPT_ATTR_NO_DRIVER_LETTER   0x8000000000000000ULL
 
 typedef struct gpt_entry {
 

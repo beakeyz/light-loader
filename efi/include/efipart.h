@@ -23,6 +23,8 @@ Revision History
 //
 //
 
+#include "efidef.h"
+
 #define EFI_PARTITION   0xef
 #define MBR_SIZE        512
 
