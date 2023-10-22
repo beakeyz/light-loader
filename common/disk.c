@@ -225,7 +225,7 @@ disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char*
   if (entry->ending_lba >= device->total_sectors)
     entry->ending_lba = device->total_sectors - 1;
 
-  entry->unique_partition_guid = guid;
+  entry->partition_type_guid = guid;
 
   gpt_entry_set_partition_name(entry, name);
 
