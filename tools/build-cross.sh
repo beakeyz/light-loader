@@ -82,12 +82,12 @@ _patch () {
 #
 _install_suite () {
   log "Installing..."
-  sudo cp $CC_PATH/bin/x86_64-pc-lightos-gcc ~/.local/bin
-  sudo cp $CC_PATH/bin/x86_64-pc-lightos-ld ~/.local/bin 
-  sudo cp $CC_PATH/bin/x86_64-pc-lightos-nm ~/.local/bin
-  sudo cp $CC_PATH/bin/x86_64-pc-lightos-objdump ~/.local/bin 
-  sudo cp $CC_PATH/bin/x86_64-pc-lightos-as ~/.local/bin 
-  sudo cp $CC_PATH/libexec/gcc/x86_64-pc-lightos/$gcc_version/cc1 ~/.local/bin
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-gcc /usr/local/bin/
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-ld /usr/local/bin/ 
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-nm /usr/local/bin/ 
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-objdump /usr/local/bin/ 
+  sudo cp $CC_PATH/bin/x86_64-pc-lightos-as /usr/local/bin/ 
+  sudo cp $CC_PATH/libexec/gcc/x86_64-pc-lightos/$gcc_version/cc1 /usr/local/bin/ 
   log "Installed the suite to ~/.local/bin !"
 }
 
@@ -104,7 +104,19 @@ fi
 
 if [[ -d $CC_PATH ]]
 then
-    panic "It seems like the crosscompiler suite has already been installed. To reinstall, remove the 'cross_compiler' directory from the project"
+  log "It seems like the crosscompiler suite has already been installed. To reinstall, remove the 'cross_compiler' directory from the project"
+
+  read -p "[?] Do you want to (re)install this cc build? [YES/no]: " do_install
+
+  if [[ "$do_install" == "yes" ]]; then 
+    _install_suite
+  else
+    if [[ -z $do_install ]]; then
+      _install_suite
+    fi
+  fi
+
+  panic "Toolchain build failed!"
 fi
 
 log "Creating cc build dir..."

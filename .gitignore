@@ -4,6 +4,10 @@
 /tools/cc/*
 /tools/cc/**
 
+./tools/cc
+./tools/cc/*
+./tools/cc/**
+
 /out/
 /out/*
 /out/**

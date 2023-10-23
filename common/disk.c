@@ -127,6 +127,45 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
   return preferred_cache_idx;
 }
 
+static disk_dev_t* 
+create_and_link_partition_dev(disk_dev_t* parent, uintptr_t start_lba, uintptr_t ending_lba)
+{
+  disk_dev_t* ret;
+
+  if (!parent || (parent->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
+    return nullptr;
+
+  ret = heap_allocate(sizeof(*ret));
+
+  if (!ret)
+    return nullptr;
+
+  memset(ret, 0, sizeof(*ret));
+
+  ret->private = parent->private;
+  ret->flags = parent->flags | DISK_FLAG_PARTITION;
+
+  ret->optimal_transfer_factor = parent->optimal_transfer_factor;
+  ret->effective_sector_size = parent->effective_sector_size;
+  ret->sector_size = parent->sector_size;
+
+  ret->first_sector = start_lba;
+  ret->total_size = (ending_lba - start_lba) * ret->effective_sector_size;
+
+  /* Ops */
+  ret->f_bread = parent->f_bread;
+  ret->f_bwrite = parent->f_bwrite;
+  ret->f_read = parent->f_read;
+  ret->f_write = parent->f_write;
+
+  disk_init_cache(ret);
+
+  ret->next_partition = parent->next_partition;
+  parent->next_partition = ret;
+
+  return ret;
+}
+
 /*!
  * NOTE: ->f_bread is permitted here, since we allocate a buffer of sector_size on the stack
  * BUT: this buffer might exeed stack size so FIXME
@@ -146,7 +185,7 @@ cache_gpt_header(disk_dev_t* device)
     4096,
   };
 
-  uint8_t buffer[device->sector_size];
+  uint8_t buffer[sizeof(gpt_header_t)];
   gpt_header_t* header = (gpt_header_t*)buffer;
 
   for (size_t i = 0; i < (sizeof(lb_guesses) / sizeof(uint32_t)); i++) {
@@ -173,6 +212,19 @@ cache_gpt_header(disk_dev_t* device)
     device->partition_header = heap_allocate(sizeof(gpt_header_t));
 
   memcpy((void*)device->partition_header, (void*)header, sizeof(*header));
+}
+
+int
+disk_get_partitions(disk_dev_t* device)
+{
+  gpt_header_t* header;
+
+  header = device->partition_header;
+
+  if (!header)
+    return -1;
+  
+  return 0;
 }
 
 void
@@ -228,6 +280,8 @@ disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char*
   entry->partition_type_guid = guid;
 
   gpt_entry_set_partition_name(entry, name);
+
+  create_and_link_partition_dev(device, entry->starting_lba, entry->ending_lba);
 
   return entry;
 }
@@ -300,10 +354,6 @@ disk_install_partitions(disk_dev_t* device)
   /* First entry will be at the start of the next lba after the header */
   entry_start = (gpt_entry_t*)((uint8_t*)gpt_buffer + device->effective_sector_size);
 
-  /*
-   * TODO: CRCs????
-   */
-
   /* Bruh, we need to setup an entire GPT header + entries ourselves -_- */
   memset(header_template, 0, sizeof(*header_template));
 
@@ -318,7 +368,8 @@ disk_install_partitions(disk_dev_t* device)
   /* Right after the header */
   header_template->partition_entry_lba = 2;
 
-  header_template->first_usable_lba = header_template->my_lba + (header_template->header_size + header_template->partition_entry_size * header_template->partition_entry_num) / device->effective_sector_size;
+  //header_template->first_usable_lba = header_template->my_lba + (header_template->header_size + header_template->partition_entry_size * header_template->partition_entry_num) / device->effective_sector_size;
+  header_template->first_usable_lba = 2048;
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
   header_template->last_usable_lba = device->total_sectors - 1;
 
@@ -336,6 +387,7 @@ disk_install_partitions(disk_dev_t* device)
   /* Realistically, the kernel + bootloader should not take more space than this */
   previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN | GPT_ATTR_BIOS_BOOTABLE, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
+  /* Add partition entry for system data (TODO: calculate size dynamically) */
   disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 256ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Create a CRC of the partition entries */
