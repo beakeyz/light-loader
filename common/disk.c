@@ -256,8 +256,12 @@ gpt_entry_set_partition_name(gpt_entry_t* entry, const char* name)
 
   memset(entry->partition_name, 0, sizeof(entry->partition_name));
 
-  if (name)
-    memcpy(entry->partition_name, name, strlen(name));
+  if (!name)
+    return;
+
+  for (uint32_t i = 0; i < strlen(name); i++) {
+    entry->partition_name[i] = (uint16_t)name[i];
+  }
 }
 
 /*!
@@ -385,7 +389,7 @@ disk_install_partitions(disk_dev_t* device)
   }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN | GPT_ATTR_BIOS_BOOTABLE, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN | GPT_ATTR_BIOS_BOOTABLE, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
   disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 256ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);

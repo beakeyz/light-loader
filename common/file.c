@@ -19,7 +19,10 @@ freadall(light_file_t* file, void* buffer)
 int 
 fwrite(light_file_t* file, void* buffer, size_t size, uintptr_t offset)
 {
-  return -1;
+  if (!file->f_write)
+    return -1;
+
+  return file->f_write(file, buffer, size, offset);
 }
 
 /*!

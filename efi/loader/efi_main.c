@@ -15,7 +15,7 @@
 #include <efierr.h>
 #include <efilib.h>
 #include <memory.h>
-#include <stdio.h>
+#include <file.h>
 
 #define INITIAL_HEAPSIZE 64 * Mib 
 

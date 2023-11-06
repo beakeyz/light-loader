@@ -29,6 +29,8 @@ panic(char* msg)
   light_gfx_t* gfx;
   get_light_gfx(&gfx);
 
+  gfx_clear_screen(gfx);
+
   /* Print n switch */
   printf(" * Lightloader panic: ");
   printf(msg);
@@ -280,6 +282,17 @@ add_multiboot_tag(uint32_t type, uint32_t size)
   return new_tag;
 }
 
+static uint32_t 
+get_first_bit_offset(uint32_t dword)
+{
+  uint32_t pos = 0;
+
+  while (pos < 31 && ((dword >> pos) & 1) == 0)
+    pos++;
+
+  return pos;
+}
+
 void 
 __attribute__((noreturn))
 boot_context_configuration(light_ctx_t* ctx)
@@ -403,6 +416,14 @@ boot_context_configuration(light_ctx_t* ctx)
     fb_tag->common.framebuffer_height = gfx->height;
     fb_tag->common.framebuffer_pitch = gfx->stride * (gfx->bpp >> 3);
     fb_tag->common.framebuffer_bpp = gfx->bpp;
+
+    fb_tag->framebuffer_red_mask_size = 8;
+    fb_tag->framebuffer_green_mask_size = 8;
+    fb_tag->framebuffer_blue_mask_size = 8;
+    
+    fb_tag->framebuffer_red_field_position = get_first_bit_offset(gfx->red_mask);
+    fb_tag->framebuffer_green_field_position = get_first_bit_offset(gfx->green_mask);
+    fb_tag->framebuffer_blue_field_position = get_first_bit_offset(gfx->blue_mask);
 
     fb_tag->common.framebuffer_type = 0;
   }

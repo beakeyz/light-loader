@@ -164,6 +164,9 @@ __fat32_read_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
 
 /*!
  * @brief: Write one entrie cluster to disk
+ * 
+ * The size of @buffer must be at least ->cluster_size 
+ * this size is assumed
  */
 static int
 __fat32_write_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
@@ -229,13 +232,26 @@ __fat32_find_free_cluster(light_fs_t* fs, uint32_t* buffer)
   return 0;
 }
 
+static uint32_t __fat32_dir_entry_get_start_cluster(fat_dir_entry_t* e)
+{
+  return (e->dir_frst_cluster_lo & 0xffff) | ((uint32_t)e->dir_frst_cluster_hi << 16);
+}
+
+static uint32_t __fat32_file_get_start_cluster(fat_file_t* ff)
+{
+  if (!ff->cluster_chain)
+    return 0;
+
+  return ff->cluster_chain[0];
+}
+
 /*!
  * @brief: Find the last cluster of a fat directory entry
  *
  * @returns: 0 on success, anything else on failure
  */
 static int 
-__fat32_find_end_cluster(light_fs_t* fs, fat_dir_entry_t* de, uint32_t* buffer)
+__fat32_find_end_cluster(light_fs_t* fs, uint32_t start_cluster, uint32_t* buffer)
 {
   int error;
   fat_private_t* p;
@@ -243,7 +259,7 @@ __fat32_find_end_cluster(light_fs_t* fs, fat_dir_entry_t* de, uint32_t* buffer)
   uint32_t value_buffer;
 
   p = fs->private;
-  value_buffer = de->dir_frst_cluster_lo | ((uint32_t)de->dir_frst_cluster_hi << 16);
+  value_buffer = start_cluster;
   previous_value = value_buffer;
 
   while (true) {
@@ -254,7 +270,7 @@ __fat32_find_end_cluster(light_fs_t* fs, fat_dir_entry_t* de, uint32_t* buffer)
       return error;
 
     /* Reached end? */
-    if (value_buffer < 0x2 || value_buffer > FAT32_CLUSTER_LIMIT)
+    if (value_buffer < 0x2 || value_buffer >= FAT32_CLUSTER_LIMIT)
       break;
 
     previous_value = value_buffer;
@@ -292,12 +308,12 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
 
   p = fs->private;
 
-  error = __fat32_find_end_cluster(fs, dir, &last_cluster);
+  error = __fat32_find_end_cluster(fs, __fat32_dir_entry_get_start_cluster(dir), &last_cluster);
 
   if (error)
     return -2;
 
-  /* Yay, we found the last data cluster. Lets cache it rq */
+  /* Yay, we found the last data cluster. Lets cache it rq (Should prob allocate on the heap to avoid stack smashing) */
   uint8_t cluster_buffer[p->cluster_size];
 
   error = __fat32_read_cluster(fs, &cluster_buffer, last_cluster);
@@ -319,6 +335,62 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     current_dir_entry_idx++;
   }
 
+  void* first_data_buffer;
+  uint32_t first_cluster = NULL;
+  error = __fat32_find_free_cluster(fs, &first_cluster);
+
+  if (error)
+    return error;
+
+  /* This buffer will contain the first cluster for our new dir entry */
+  first_data_buffer = heap_allocate(p->cluster_size);
+  memset(first_data_buffer, 0, p->cluster_size);
+
+  /* Add some data to this mofo */
+  if ((entry->dir_attr & FAT_ATTR_DIRECTORY) == FAT_ATTR_DIRECTORY) {
+    /* Take the buffer */
+    fat_dir_entry_t* new_cluster_buffer = (fat_dir_entry_t*)first_data_buffer;
+
+    /* Set the current dir entry */
+    new_cluster_buffer[0].dir_attr = FAT_ATTR_DIRECTORY;
+    memset(&new_cluster_buffer[0].dir_name, ' ', 11);
+    new_cluster_buffer[0].dir_name[0] = '.';
+    new_cluster_buffer[0].filesize_bytes = 0;
+    new_cluster_buffer[0].dir_frst_cluster_lo = first_cluster & 0xffff;
+    new_cluster_buffer[0].dir_frst_cluster_hi = (first_cluster >> 16) & 0xffff;
+
+    /* Set the previous dir entry */
+    new_cluster_buffer[1].dir_attr = FAT_ATTR_DIRECTORY;
+    memset(&new_cluster_buffer[1].dir_name, ' ', 11);
+    new_cluster_buffer[1].dir_name[0] = '.';
+    new_cluster_buffer[1].dir_name[1] = '.';
+    new_cluster_buffer[1].filesize_bytes = 0;
+    new_cluster_buffer[1].dir_frst_cluster_lo = dir->dir_frst_cluster_lo;
+    new_cluster_buffer[1].dir_frst_cluster_hi = dir->dir_frst_cluster_hi;
+    entry->filesize_bytes = 0;
+  } else {
+    /* Set the filesize for a generic file */
+    entry->filesize_bytes = p->cluster_size;
+  }
+
+  /* Write our initial data into this cluster */
+  error = __fat32_write_cluster(fs, first_data_buffer, first_cluster);
+
+  /* Free the buffer after we're done with it */
+  heap_free(first_data_buffer);
+  
+  if (error)
+    return error;
+
+  /* Make sure the first data buffer is also marked as the last, since there is currently only one buffer */
+  error = __fat32_set_cluster(fs, FAT32_CLUSTER_LIMIT, first_cluster);
+
+  if (error)
+    return error;
+
+  entry->dir_frst_cluster_lo = first_cluster & 0xffff;
+  entry->dir_frst_cluster_hi = (first_cluster >> 16) & 0xffff;
+
   /*
    * Can we steal from this cluster or do we have to append a new one?
    */
@@ -329,6 +401,7 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     /* (TODO) Write the cluster back to disk (and sync?) */
     error = __fat32_write_cluster(fs, cluster_buffer, last_cluster);
   } else {
+    for (;;) {}
     return -5;
   }
 
@@ -350,7 +423,7 @@ __fat32_cache_cluster_chain(light_fs_t* fs, light_file_t* file, uint32_t start_c
   uint32_t buffer;
   fat_file_t* ffile;
   
-  if (start_cluster < 0x2 || start_cluster > FAT32_CLUSTER_LIMIT)
+  if (start_cluster < 0x2 || start_cluster >= FAT32_CLUSTER_LIMIT)
     return -1;
 
   if (!file || !file->private)
@@ -370,7 +443,7 @@ __fat32_cache_cluster_chain(light_fs_t* fs, light_file_t* file, uint32_t start_c
     if (error)
       return error;
 
-    if (buffer < 0x2 || buffer > FAT32_CLUSTER_LIMIT)
+    if (buffer < 0x2 || buffer >= FAT32_CLUSTER_LIMIT)
       break;
 
     length++;
@@ -379,7 +452,7 @@ __fat32_cache_cluster_chain(light_fs_t* fs, light_file_t* file, uint32_t start_c
   /* Set correct lengths */
   ffile->cluster_chain_length = length;
 
-  /* Files can have a length of zero */
+  /* Files can have a length of zero? */
   if (!length)
     return 0;
 
@@ -572,8 +645,133 @@ fail_dealloc_cchain:
 static int
 __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
 {
-  /* TODO: */
-  return -1;
+  int error;
+  bool did_overflow;
+  uint32_t max_offset;
+  uint32_t overflow_delta;
+  uint32_t overflow_clusters;
+  uint32_t write_clusters;
+  uint32_t write_start_cluster;
+  uint32_t start_cluster_index;
+  uint32_t cluster_internal_offset;
+  uint32_t file_start_cluster;
+  uint32_t file_end_cluster;
+  fat_private_t* f_priv;
+  fat_file_t* ffile;
+
+  ffile = file->private;
+
+  if (!ffile)
+    return -1;
+
+  f_priv = file->parent_fs->private;
+  max_offset = ffile->cluster_chain_length * f_priv->cluster_size - 1;
+  overflow_delta = 0;
+
+  if (offset + size > max_offset)
+    overflow_delta = (offset + size) - max_offset;
+
+  did_overflow = false;
+
+  /* Calculate how many clusters we might need to allocate extra */
+  overflow_clusters = overflow_delta / f_priv->cluster_size;
+  /* Calculate in how many clusters we need to write */
+  write_clusters = ALIGN_UP(size, f_priv->cluster_size) / f_priv->cluster_size;
+  /* Calculate the first cluster where we need to write */
+  write_start_cluster = ALIGN_DOWN(offset, f_priv->cluster_size) / f_priv->cluster_size;
+  /* Calculate the start offset within the first cluster */
+  cluster_internal_offset = offset % f_priv->cluster_size;
+  /* Find the starting cluster */
+  file_start_cluster = __fat32_file_get_start_cluster(ffile);
+
+  /* Find the last cluster of this file */
+  error = __fat32_find_end_cluster(file->parent_fs, file_start_cluster, &file_end_cluster);
+
+  if (error)
+    return error;
+
+  uint32_t next_free_cluster;
+
+  /* Allocate the overflow clusters */
+  while (overflow_clusters) {
+    next_free_cluster = NULL;
+
+    /* Find a free cluster */
+    error = __fat32_find_free_cluster(file->parent_fs, &next_free_cluster);
+
+    if (error)
+      return error;
+
+    /* Add this cluster to the end of this files chain */
+    __fat32_set_cluster(file->parent_fs, next_free_cluster, file_end_cluster);
+    __fat32_set_cluster(file->parent_fs, FAT32_CLUSTER_LIMIT, next_free_cluster);
+
+    did_overflow = true;
+    file_end_cluster = next_free_cluster;
+    overflow_clusters--;
+  }
+
+  /* Only re-cache the cluster chain if we made changes to the clusters */
+  if (did_overflow) {
+    /* Reset cluster_chain data for this file */
+    heap_free(ffile->cluster_chain);
+    ffile->cluster_chain = NULL;
+    ffile->cluster_chain_length = NULL;
+
+    /* Re-cache the cluster chain */
+    error = __fat32_cache_cluster_chain(file->parent_fs, file, file_start_cluster);
+
+    if (error)
+      return error;
+
+    file->filesize = ffile->cluster_chain_length * f_priv->cluster_size;
+  }
+
+  /*
+   * We can now perform a nice write opperation on this files data
+   */
+  start_cluster_index = write_start_cluster / ffile->cluster_chain_length;
+  uint8_t* cluster_buffer = heap_allocate(f_priv->cluster_size);
+
+  /* Current offset: the offset into the current cluster */
+  uint32_t current_offset = cluster_internal_offset;
+  /* Current delta: how much have we already written */
+  uint32_t current_delta = 0;
+  /* Write size: how many bytes are in this write */
+  uint32_t write_size;
+  
+  /* FIXME: this is prob slow asf. We could be smarter about our I/O */
+  for (uint32_t i = 0; i < write_clusters; i++) {
+
+    if (current_delta >= size)
+      break;
+
+    /* This is the cluster we need to write shit to */
+    uint32_t this_cluster = ffile->cluster_chain[start_cluster_index+i];
+
+    /* Figure out the write size */
+    write_size = size - current_delta;
+
+    /* Write size exceeds the size of our clusters */
+    if (write_size > f_priv->cluster_size - current_offset)
+      write_size = f_priv->cluster_size - current_offset;
+
+    /* Read the current content into our buffer here */
+    __fat32_read_cluster(file->parent_fs, cluster_buffer, this_cluster);
+
+    /* Copy the bytes over */
+    memcpy(&cluster_buffer[current_offset], &buffer[current_delta], write_size);
+
+    /* And write back the changes we've made */
+    __fat32_write_cluster(file->parent_fs, cluster_buffer, this_cluster);
+
+    current_delta += write_size;
+    /* After the first write, any subsequent write will always start at the start of a cluster */
+    current_offset = 0;
+  }
+
+  heap_free(cluster_buffer);
+  return 0;
 }
 
 static int 
@@ -591,7 +789,7 @@ __fat32_file_readall(struct light_file* file, void* buffer)
   fat_file_t* ffile = file->private;
 
   if (!ffile)
-    return -1;
+    return 1;
 
   p = file->parent_fs->private;
   total_size = ffile->cluster_chain_length * p->cluster_size;
@@ -663,10 +861,10 @@ fat32_open(light_fs_t* fs, char* path)
     /*
      * If we found our file (its not a directory) we can populate the file object and return it
      */
-    if ((current.dir_attr & (FAT_ATTR_DIRECTORY|FAT_ATTR_VOLUME_ID)) != FAT_ATTR_DIRECTORY) {
+    if ((current.dir_attr & (FAT_ATTR_DIRECTORY|FAT_ATTR_VOLUME_ID)) != FAT_ATTR_DIRECTORY) { 
 
       /* Make sure the file knows about its cluster chain */
-      error = __fat32_cache_cluster_chain(fs, file, (current.dir_frst_cluster_lo | (current.dir_frst_cluster_hi << 16)));
+      error = __fat32_cache_cluster_chain(fs, file, __fat32_dir_entry_get_start_cluster(&current));
 
       /* Only if we failed to read a file with bytes lmao */
       if (error && current.filesize_bytes)
@@ -703,6 +901,7 @@ fat32_create_path(light_fs_t* fs, const char* path)
 {
   /* Include 0x00 byte */
   int error;
+  bool is_dir;
   const size_t path_size = strlen(path) + 1;
 
   if (path_size >= FAT32_MAX_FILENAME_LENGTH)
@@ -714,6 +913,7 @@ fat32_create_path(light_fs_t* fs, const char* path)
   memcpy(path_buffer, path, path_size);
 
   p = fs->private;
+  is_dir = false;
 
   uintptr_t current_idx = 0;
   fat_dir_entry_t current = p->root_entry;
@@ -725,6 +925,10 @@ fat32_create_path(light_fs_t* fs, const char* path)
     /* Stop either at the end, or at any '/' char */
     if (path_buffer[i] != '/' && path_buffer[i] != '\0')
       continue;
+
+    /* We are working with a directory! */
+    if (path_buffer[i] == '/')
+      is_dir = true;
 
     /* Place a null-byte */
     path_buffer[i] = '\0';
@@ -738,13 +942,20 @@ fat32_create_path(light_fs_t* fs, const char* path)
       /* We're in a directory right now, so let's just copy the attributes of our bby */
       fat_dir_entry_t new_entry = { 0 };
 
-      if (!transform_fat_filename((char*)new_entry.dir_name, &path_buffer[current_idx]))
+      (void)transform_fat_filename((char*)new_entry.dir_name, &path_buffer[current_idx]);
+      //memset(new_entry.dir_name, ' ', sizeof new_entry.dir_name);
+      //memcpy(new_entry.dir_name, &path_buffer[current_idx], sizeof new_entry.dir_name);
+
+      if (is_dir)
         new_entry.dir_attr |= FAT_ATTR_DIRECTORY;
 
       error = __fat32_dir_append_entry(fs, &current, &new_entry);
 
       if (error)
         return error;
+      
+      /* Copy the 'new_entry' data into the current entry */
+      current = new_entry;
     }
 
     /* Set the current index if we have successfuly 'switched' directories */
@@ -754,6 +965,9 @@ fat32_create_path(light_fs_t* fs, const char* path)
      * Place back the slash
      */
     path_buffer[i] = '/';
+
+    /* Make sure we don't believe everything is a dir */
+    is_dir = false;
   }
 
   return 0;

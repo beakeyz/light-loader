@@ -79,9 +79,9 @@ init_framebuffer()
   if (!handle_count)
     return;
 
-  /* We like 720p the best =) */
-  optimal_resolution = &resolutions[RES_720P];
-  optimal_resolution_2 = &resolutions[RES_480P];
+  /* We like 480p the best (Since our framebuffer tech is kinda trash) =) */
+  optimal_resolution = &resolutions[RES_480P];
+  optimal_resolution_2 = &resolutions[RES_720P];
   optimal_resolution_3 = &resolutions[RES_1080P];
 
   gop_handle = nullptr;

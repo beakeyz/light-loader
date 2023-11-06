@@ -135,8 +135,6 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	# Copy stuff over to the device
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo mkdir -p $(BOOTRT_DIR)/System
-	sudo cp ../lighthouse-os/out/drivers/test/test.drv $(BOOTRT_DIR)/System
-	sudo cp ../lighthouse-os/out/drivers/util/kterm/kterm.drv $(BOOTRT_DIR)/System
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
@@ -170,8 +168,6 @@ else
 
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo mkdir -p $(BOOTRT_DIR)/System
-	sudo cp ../lighthouse-os/out/drivers/test/test.drv $(BOOTRT_DIR)/System
-	sudo cp ../lighthouse-os/out/drivers/util/kterm/kterm.drv $(BOOTRT_DIR)/System
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
@@ -194,4 +190,4 @@ clean: ## Remove any object files or binaries from the project
 
 .PHONY: debug
 debug: ## Run lightloader in Qemu
-	@$(EMU) -m 1G -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio -device nec-usb-xhci -device usb-tablet
+	@$(EMU) -m 1G -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -enable-kvm -serial stdio  -device nec-usb-xhci -device usb-tablet

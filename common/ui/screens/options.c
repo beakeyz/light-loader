@@ -1,8 +1,10 @@
 #include "file.h"
 #include "gfx.h"
+#include "heap.h"
 #include "stddef.h"
 #include "ui/box.h"
 #include "ui/button.h"
+#include <stdio.h>
 #include <ui/screens/options.h>
 
 int test_onclick(button_component_t* comp)
@@ -14,18 +16,44 @@ int test_onclick(button_component_t* comp)
     comp->parent->label = "Fuck you lmao";
   else
     comp->parent->label = "Yay, Success";
+
+  /* Try to create the path /User on the boot disk */
+  light_file_t* file = fopen("test.txt");
+
+  if (error)
+    comp->parent->label = "Yay, Success";
+  else
+    comp->parent->label = "Fuck you lmao";
+
+  char* test_str = "This is a test, yay";
+
+  /* Write into the file */
+  error = fwrite(file, test_str, 20, 0);
+
+  if (error)
+    comp->parent->label = "Could not write =/";
+  else
+    comp->parent->label = "yay";
+
   return 0;
 }
 
 int open_test_onclick(button_component_t* comp)
 {
   /* Try to create the path /User on the boot disk */
-  light_file_t* error = fopen("test.txt");
+  light_file_t* file = fopen("test.txt");
 
-  if (error)
+  if (file)
     comp->parent->label = "Yay, Success";
   else
     comp->parent->label = "Fuck you lmao";
+
+  char* buffer = heap_allocate(128);
+
+  fread(file, buffer, 20, 0);
+
+  comp->parent->label = buffer;
+
   return 0;
 }
 
