@@ -1,5 +1,6 @@
 #include "ctx.h"
 #include "disk.h"
+#include "fs.h"
 #include "gfx.h"
 #include "memory.h"
 #include "stddef.h"
@@ -199,9 +200,9 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
     current_btn->private = (uintptr_t)dev;
   }
 
-  create_switch(root, "I confirm my intentions", 24, gfx->height - 94, (gfx->width >> 2) - 24, 46, &ctx->install_confirmed);
+  create_switch(root, "Confirm my installation", 24, gfx->height - 94, (gfx->width >> 1) - 24, gfx->current_font->height * 2, &ctx->install_confirmed);
 
-  create_button(root, "Install", (gfx->width >> 1) - 256 / 2, gfx->height - 28 - 8, gfx->width >> 2, 28, install_btn_onclick, nullptr);
+  create_button(root, "Install", 24, gfx->height - 28 - 8, gfx->width >> 1, 28, install_btn_onclick, nullptr);
 
   return 0;
 }
@@ -213,16 +214,39 @@ static int
 perform_install()
 {
   int error;
+  disk_dev_t* this;
+  disk_dev_t* cur_partition;
 
   if (!current_device)
     return -1;
 
-  error = disk_install_partitions((disk_dev_t*)current_device->private);
+  this = (disk_dev_t*)current_device->private;
+
+  if (!this)
+    return -2;
+
+  error = disk_install_partitions(this);
 
   if (error)
     return error;
 
-  return 0;
+  cur_partition = this->next_partition;
+
+  do {
+
+    /*
+     * Install a filesystem on this partition 
+     * TODO: let the user choose it's filesystem
+     */
+    error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
+
+    if (error)
+      break;
+
+    cur_partition = cur_partition->next_partition;
+  } while (cur_partition);
+
+  return error;
   /*
    * TODO: install =)
    *

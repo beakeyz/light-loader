@@ -131,8 +131,8 @@ switch_draw(light_component_t* comp)
 {
   bool status;
   button_component_t* btn;
-  const uint32_t switch_width = 42;
-  const uint32_t switch_height = 24;
+  const uint32_t switch_width = 16;
+  const uint32_t switch_height = 16;
   const uint32_t switch_padding = 8;
   const uint32_t switch_x = comp->x + comp->width - switch_width - switch_padding;
   const uint32_t switch_y = comp->y + comp->height - switch_height - (comp->height - switch_height) / 2;
@@ -164,11 +164,11 @@ switch_draw(light_component_t* comp)
   /* Switch box */
   gfx_draw_rect(comp->gfx, switch_x, switch_y, switch_width, switch_height, DARK_GRAY);
 
-  if (status) {
-    gfx_draw_rect_outline(comp->gfx, switch_x, switch_y, switch_width, switch_height, GREEN);
-  } else {
-    gfx_draw_rect_outline(comp->gfx, switch_x, switch_y, switch_width, switch_height, RED);
-  }
+  if (comp->gfx->_checkbox_image)
+    draw_image(comp->gfx, switch_x, switch_y, comp->gfx->_checkbox_image);
+
+  if (status && comp->gfx->_check_image)
+    draw_image(comp->gfx, switch_x, switch_y, comp->gfx->_check_image);
 
   return 0;
 }

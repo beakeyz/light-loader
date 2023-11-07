@@ -34,7 +34,7 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   fat_private_t* private;
   fat_bpb_t bpb = { 0 };
 
-  error = device->f_read(device, &bpb, sizeof(bpb), device->first_sector);
+  error = device->f_read(device, &bpb, sizeof(bpb), device->first_sector * device->effective_sector_size);
 
   if (error)
     return error;
@@ -982,6 +982,43 @@ fat32_close(light_fs_t* fs, light_file_t* file)
   return 0;
 }
 
+/*!
+ * @brief: TODO:
+ */
+int 
+fat32_install(light_fs_t* fs, disk_dev_t* device)
+{
+  uint32_t sectors_per_cluster;
+  uint32_t sector_size;
+  fat_bpb_t bpb;
+  void* fat;
+  fat_dir_entry_t root_entry;
+
+  memset(&bpb, 0, sizeof(bpb));
+  memset(&root_entry, 0, sizeof(root_entry));
+
+  sector_size = 512;
+
+  /* Write both identifiers, just for fun */
+  memcpy("FAT32", bpb.oem_name, 6);
+  memcpy("FAT", bpb.reserved, 4);
+
+  bpb.bytes_per_sector = sector_size;
+  bpb.sector_num_fat32 = device->total_size / sector_size;
+
+  /* Write the bpb to the first sector of the device */
+  device->f_write(device, &bpb, sizeof(bpb), 0);
+
+  /*
+   * What to do:
+   * - Create a bpb for this filesystem
+   * - Calculate a nice cluster size for this device
+   * - Create the FATs
+   * - Create a root directory entry
+   */
+  return 0;
+}
+
 light_fs_t fat32_fs = 
 {
   .fs_type = FS_TYPE_FAT32,
@@ -989,6 +1026,7 @@ light_fs_t fat32_fs =
   .f_open = fat32_open,
   .f_close = fat32_close,
   .f_create_path = fat32_create_path,
+  .f_install = fat32_install,
 };
 
 void 

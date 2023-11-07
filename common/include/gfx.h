@@ -10,6 +10,7 @@
 
 struct light_font;
 struct light_ctx;
+struct light_image;
 struct light_component;
 
 /*
@@ -83,6 +84,9 @@ typedef struct light_gfx {
   /* Yay, doublebuffering 0.0 */
   uintptr_t back_fb;
   size_t back_fb_pages;
+
+  struct light_image* _check_image;
+  struct light_image* _checkbox_image;
 
 } light_gfx_t;
 

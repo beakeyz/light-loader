@@ -627,6 +627,10 @@ gfx_enter_frontend()
 
   init_mouse();
 
+  /* Make sure we have the images cached for our switches */
+  light_gfx._check_image = load_bmp_image("res/check.bmp");
+  light_gfx._checkbox_image = load_bmp_image("res/chkbox.bmp");
+
   /* Initialize the cursor */
   init_cursor(&light_gfx);
 
@@ -760,5 +764,6 @@ init_light_gfx()
 
   light_gfx.current_font = &default_light_font;
   light_gfx.ctx = get_light_ctx();
+
   root_component = nullptr;
 }

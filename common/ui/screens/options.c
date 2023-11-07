@@ -5,6 +5,7 @@
 #include "ui/box.h"
 #include "ui/button.h"
 #include <stdio.h>
+#include <font.h>
 #include <ui/screens/options.h>
 
 int test_onclick(button_component_t* comp)
@@ -43,16 +44,14 @@ int open_test_onclick(button_component_t* comp)
   /* Try to create the path /User on the boot disk */
   light_file_t* file = fopen("test.txt");
 
-  if (file)
-    comp->parent->label = "Yay, Success";
-  else
+  if (file) {
+    char* buffer = heap_allocate(128);
+
+    fread(file, buffer, 20, 0);
+
+    comp->parent->label = buffer;
+  } else
     comp->parent->label = "Fuck you lmao";
-
-  char* buffer = heap_allocate(128);
-
-  fread(file, buffer, 20, 0);
-
-  comp->parent->label = buffer;
 
   return 0;
 }
@@ -73,10 +72,10 @@ construct_optionsscreen(light_component_t** root, light_gfx_t* gfx)
 {
   sicko = false;
 
-  create_button(root, "Test fat", 50, 50, 156, 26, test_onclick, nullptr);
-  create_button(root, "Open Test fat", 50, 80, 156, 26, open_test_onclick, nullptr);
+  create_button(root, "Test fat", 24, 50, 156, 26, test_onclick, nullptr);
+  create_button(root, "Open Test fat", 24, 80, 156, 26, open_test_onclick, nullptr);
 
-  create_switch(root, "Fuc you", 50, 140, 245, 36, &sicko);
+  create_switch(root, "Fuc you", 24, 140, 245, gfx->current_font->height * 2, &sicko);
 
   /* TODO: ... */
   return 0;

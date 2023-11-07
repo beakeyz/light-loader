@@ -56,7 +56,7 @@ typedef struct light_fs {
   int (*f_close)(struct light_fs* fs, struct light_file*);
   /* Probe the disk for this filesystem */
   int (*f_probe)(struct light_fs* fs, struct disk_dev* device);
-
+  int (*f_install)(struct light_fs* fs, struct disk_dev* device);
   struct light_fs* next;
 } light_fs_t;
 
@@ -73,6 +73,7 @@ is_fs_used(light_fs_t* fs)
 
 light_fs_t* get_fs(uint8_t type);
 
+int disk_install_fs(disk_dev_t* device, uint8_t type);
 int disk_probe_fs(disk_dev_t* device);
 
 #endif // !__LIGHTLOADER_FS__

@@ -88,6 +88,30 @@ get_fs(uint8_t type)
 }
 
 /*!
+ * @brief: This installs and probes a filesystem of type @type on @device
+ *
+ * After the ->f_install call succeeds, we will call ->f_probe to make sure
+ * the filesystem we created is valid and useable for us
+ */
+int 
+disk_install_fs(disk_dev_t* device, uint8_t type)
+{
+  light_fs_t* fs;
+
+  fs = get_fs(type);
+
+  if (!fs || !fs->f_install)
+    return -1;
+
+  /* Try to install */
+  if (!fs->f_install(fs, device))
+    return -2;
+
+  /* Make sure the installed filesystem is valid */
+  return disk_probe_fs(device);
+}
+
+/*!
  * @brief: Try to see if a filesystem fits on a disk device @device
  *
  * When we find that the filesystem fits, we copy it over to the @mounted_filesystems
@@ -101,6 +125,7 @@ disk_probe_fs(disk_dev_t* device)
   light_fs_t* copy_fs;
 
   for (fs = filesystems; fs; fs = fs->next) {
+    /* Every filesystem is responsible for cleanup if this function fails */
     error = fs->f_probe(fs, device);
 
     if (!error)

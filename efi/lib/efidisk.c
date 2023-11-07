@@ -35,7 +35,8 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
   if ((dev->cache.cache_dirty_flags & (1 << cache_idx)) && dev->cache.cache_block[cache_idx] == block)
     goto success;
 
-  start_block = dev->first_sector / (dev->sector_size / 512);
+  /* Translate 512-byte sized sectors into blocks */
+  start_block = dev->first_sector / (dev->effective_sector_size / 512);
 
   disk_clear_cache(dev, block);
 
