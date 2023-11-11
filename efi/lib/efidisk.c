@@ -25,7 +25,6 @@ static uint8_t
 __cached_read(struct disk_dev* dev, uintptr_t block)
 {
   int error;
-  uintptr_t start_block;
   uint8_t cache_idx = disk_select_cache(dev, block);
 
   if (!dev->cache.cache_ptr[cache_idx])
@@ -35,16 +34,14 @@ __cached_read(struct disk_dev* dev, uintptr_t block)
   if ((dev->cache.cache_dirty_flags & (1 << cache_idx)) && dev->cache.cache_block[cache_idx] == block)
     goto success;
 
-  /* Translate 512-byte sized sectors into blocks */
-  start_block = dev->first_sector / (dev->effective_sector_size / 512);
-
+  /* Make sure there are no other cache entries with this block */
   disk_clear_cache(dev, block);
 
   /* Read one block */
-  error = dev->f_bread(dev, dev->cache.cache_ptr[cache_idx], 1, start_block + block);
+  error = dev->f_bread(dev, dev->cache.cache_ptr[cache_idx], 1, block);
 
   if (error)
-    goto out;
+    return 0;
 
 success:
   dev->cache.cache_dirty_flags |= (1 << cache_idx);
@@ -65,6 +62,9 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
 
   current_offset = 0;
   lba_size = dev->sector_size;
+
+  /* Add stuff */
+  offset += (dev->first_sector * dev->effective_sector_size);
 
   while (current_offset < size) {
     current_block = (offset + current_offset) / lba_size;
@@ -92,12 +92,16 @@ __read(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
 static int
 __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
 {
+  int error;
   uint64_t current_block, current_offset, current_delta;
   uint64_t lba_size, read_size;
   uint8_t current_cache_idx;
 
   current_offset = 0;
   lba_size = dev->sector_size;
+
+  /* Add stuff */
+  offset += (dev->first_sector * dev->effective_sector_size);
 
   while (current_offset < size) {
     current_block = (offset + current_offset) / lba_size;
@@ -119,8 +123,10 @@ __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
     /* Copy from our buffer into the cache */
     memcpy(&(dev->cache.cache_ptr[current_cache_idx])[current_delta], buffer + current_offset, read_size);
 
+    error = dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block);
+
     /* Try to write this fucker to disk lol */
-    if (dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block))
+    if (error)
       return -2;
 
     current_offset += read_size;
@@ -140,7 +146,7 @@ __bread(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
   status = stuff->blockio->ReadBlocks(stuff->blockio, stuff->media->MediaId, lba * dev->optimal_transfer_factor, count * dev->sector_size, buffer);
 
   if (EFI_ERROR(status))
-    return -1;
+    return status;
 
   return 0;
 }
@@ -156,7 +162,7 @@ __bwrite(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
   status = stuff->blockio->WriteBlocks(stuff->blockio, stuff->media->MediaId, lba * dev->optimal_transfer_factor, count * dev->sector_size, buffer);
 
   if (EFI_ERROR(status))
-    return -1;
+    return status;
   
   return 0;
 }
@@ -197,8 +203,8 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   ret->optimal_transfer_factor = media->OptimalTransferLengthGranularity;
 
   /* Clamp the transfer size */
-  if (ret->optimal_transfer_factor == 0)    ret->optimal_transfer_factor = 32;
-  if (ret->optimal_transfer_factor > 512)   ret->optimal_transfer_factor = 512;
+  if (ret->optimal_transfer_factor == 0)         ret->optimal_transfer_factor = 32;
+  else if (ret->optimal_transfer_factor > 512)   ret->optimal_transfer_factor = 512;
 
   ret->effective_sector_size = media->BlockSize;
   ret->sector_size = media->BlockSize * ret->optimal_transfer_factor;

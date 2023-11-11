@@ -232,7 +232,7 @@ perform_install()
 
   cur_partition = this->next_partition;
 
-  do {
+  while (cur_partition) {
 
     /*
      * Install a filesystem on this partition 
@@ -241,12 +241,12 @@ perform_install()
     error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
 
     if (error)
-      break;
+      return error;
 
     cur_partition = cur_partition->next_partition;
-  } while (cur_partition);
+  }
 
-  return error;
+  return 0;
   /*
    * TODO: install =)
    *

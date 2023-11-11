@@ -106,6 +106,7 @@ sbrk(unsigned long long size)
 void*
 heap_allocate(unsigned long long size)
 {
+  size_t new_node_size;
   heap_node_t* node;
 
   if (!size)
@@ -116,7 +117,7 @@ heap_allocate(unsigned long long size)
   while (node) {
 
     if ((node->flags & HEAP_NODE_FLAG_USED) == 0 && node->size - sizeof(heap_node_t) >= size) {
-      size_t new_node_size = size + sizeof(heap_node_t);
+      new_node_size = ALIGN_UP(size + sizeof(heap_node_t), sizeof(uint64_t));
       
       /* If the node fits perfectly, just take it. */
       if (new_node_size == node->size) {

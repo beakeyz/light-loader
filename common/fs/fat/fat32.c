@@ -34,7 +34,7 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   fat_private_t* private;
   fat_bpb_t bpb = { 0 };
 
-  error = device->f_read(device, &bpb, sizeof(bpb), device->first_sector * device->effective_sector_size);
+  error = device->f_read(device, &bpb, sizeof(bpb), 0);
 
   if (error)
     return error;
@@ -46,7 +46,7 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   const char* fat32_ident_fancy = (((void*)&bpb) + 0x03);
 
   if (strncmp(fat32_ident, "FAT", 3) != 0 && strncmp(fat32_ident_fancy, "FAT32", 5) != 0)
-    return -1;
+    return 0;
 
   if (!bpb.bytes_per_sector)
     return -1;
@@ -982,6 +982,26 @@ fat32_close(light_fs_t* fs, light_file_t* file)
   return 0;
 }
 
+/*
+ * Straight from the Microsoft FAT spec
+ * at: https://academy.cba.mit.edu/classes/networking_communications/SD/FAT.pdf
+ */
+struct disksize_clustercount_mapping {
+  uint32_t DiskSize;
+  uint8_t SecPerClusVal;
+};
+
+/* This too xD */
+static struct disksize_clustercount_mapping DskTableFAT32 [] = {
+  {66600, 0}, /* disks up to 32.5 MB, the 0 value for SecPerClusVal trips an error */
+  {532480, 1}, /* disks up to 260 MB, .5k cluster */
+  {16777216, 8}, /* disks up to 8 GB, 4k cluster */
+  {33554432, 16}, /* disks up to 16 GB, 8k cluster */
+  {67108864, 32}, /* disks up to 32 GB, 16k cluster */
+  {0xFFFFFFFF, 64}/* disks greater than 32GB, 32k cluster */
+};
+static uint32_t dsk_table_mapping_count = sizeof(DskTableFAT32) / sizeof(*DskTableFAT32);
+
 /*!
  * @brief: TODO:
  */
@@ -990,6 +1010,8 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 {
   uint32_t sectors_per_cluster;
   uint32_t sector_size;
+  uint32_t cluster_count;
+  uint32_t fat_size_sectors;
   fat_bpb_t bpb;
   void* fat;
   fat_dir_entry_t root_entry;
@@ -1000,14 +1022,63 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   sector_size = 512;
 
   /* Write both identifiers, just for fun */
+  memcpy("FAT32 ", bpb.system_type, 7);
   memcpy("FAT32", bpb.oem_name, 6);
   memcpy("FAT", bpb.reserved, 4);
 
+  for (uint32_t i = 0; i < dsk_table_mapping_count; i++) {
+
+    /* If we've reached the last mapping, we'll just use that */
+    if (device->total_size > DskTableFAT32[i].DiskSize && i+1 != dsk_table_mapping_count)
+      continue;
+    
+    bpb.sectors_per_cluster = DskTableFAT32[i].SecPerClusVal;
+    break;
+  }
+
+  /* Fuck, could not find a mapping =/ */
+  if (!bpb.sectors_per_cluster)
+    return -1;
+
   bpb.bytes_per_sector = sector_size;
+  /* TODO: make sure 2+Tib devices don't fuck us here */
   bpb.sector_num_fat32 = device->total_size / sector_size;
+  /* TODO: calculate this */
+  bpb.root_entries_count = 0;
+
+  cluster_count = bpb.sector_num_fat32 / bpb.sectors_per_cluster;
+  /* TODO: recursively do this calculation to minimize wasted space */
+  fat_size_sectors = (cluster_count * 4) / sector_size;
+
+  bpb.fat_num = 2;
+  bpb.sectors_num_per_fat = fat_size_sectors;
+  bpb.reserved_sector_count = 32;
+  bpb.root_cluster = 2;
+  /* Disable FAT mirroring and enable the 0th FAT */
+  bpb.ext_flags = 0;
+  bpb.ext_flags |= (1 << 7);
+  bpb.fs_version = 0;
+  bpb.fs_info_sector = 1;
+  /* Make bios happy */
+  bpb.content[510] = 0x55;
+  bpb.content[511] = 0xAA;
+
+  /*
+  private->root_directory_sectors = (bpb.root_entries_count * 32 + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
+  private->total_reserved_sectors = bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat) + private->root_directory_sectors;
+  private->total_usable_sectors = bpb.sector_num_fat32 - private->total_reserved_sectors;
+  private->cluster_count = private->total_usable_sectors / bpb.sectors_per_cluster;
+  private->cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
+  private->first_cluster_offset = bpb.reserved_sector_count * bpb.bytes_per_sector;
+  private->usable_clusters_start = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat));
+  */
+
+  /* Zero the entire disk */
+  uint8_t nullbytes[sector_size];
+  memset(nullbytes, 0, sector_size);
 
   /* Write the bpb to the first sector of the device */
-  device->f_write(device, &bpb, sizeof(bpb), 0);
+  return device->f_write(device, &bpb, sizeof(bpb), 0);
 
   /*
    * What to do:

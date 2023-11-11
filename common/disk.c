@@ -78,7 +78,7 @@ uint8_t
 disk_select_cache(disk_dev_t* device, uint64_t block)
 {
   uint8_t lower_count = 0;
-  uint8_t preferred_cache_idx = (uint8_t)-1;
+  uint8_t preferred_cache_idx = 0xff;
   uint8_t lowest_usecount = 0xFF;
 
   /*
@@ -89,7 +89,7 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
   for (uint8_t i = 0; i < 8; i++) {
 
     /* Free cache? Mark it and go next */
-    if ((device->cache.cache_dirty_flags & (1 << i)) == 0) {
+    if ((device->cache.cache_dirty_flags & (1 << i)) != (1 << i)) {
       preferred_cache_idx = i;
       continue;
     }
@@ -100,7 +100,7 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
   }
 
   /* If there was a cache with a lowest count, use that */
-  if (preferred_cache_idx != (uint8_t)-1)
+  if (preferred_cache_idx != 0xff)
     return preferred_cache_idx;
 
   /*
@@ -333,11 +333,11 @@ disk_install_partitions(disk_dev_t* device)
   gpt_entry_t* previous_entry;
 
   /* Can't install to a partition lmao */
-  if ((device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
+  if ((device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION || device->total_size < (4ull * Gib))
     return -1;
 
   ctx = get_light_ctx();
-  partition_count = 64;
+  partition_count = 128;
   crc_buffer = 0;
   total_required_size = ALIGN_UP(sizeof(gpt_header_t), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
 
@@ -372,8 +372,9 @@ disk_install_partitions(disk_dev_t* device)
   /* Right after the header */
   header_template->partition_entry_lba = 2;
 
-  //header_template->first_usable_lba = header_template->my_lba + (header_template->header_size + header_template->partition_entry_size * header_template->partition_entry_num) / device->effective_sector_size;
-  header_template->first_usable_lba = 2048;
+  //header_template->first_usable_lba = 2048;
+  header_template->first_usable_lba = (ALIGN_UP(total_required_size, device->effective_sector_size) / device->effective_sector_size);
+
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
   header_template->last_usable_lba = device->total_sectors - 1;
 
@@ -415,9 +416,14 @@ disk_install_partitions(disk_dev_t* device)
 
   header_template->header_crc32 = crc_buffer;
 
+  uint8_t* zeros = heap_allocate(device->effective_sector_size);
+  memset(zeros, 0, device->effective_sector_size);
+
+  device->f_write(device, zeros, device->effective_sector_size, 0);
   /* Write this on lba 1 =) */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
 
+  heap_free(zeros);
   heap_free(gpt_buffer);
 
   return 0;

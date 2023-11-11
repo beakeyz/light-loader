@@ -104,9 +104,10 @@ disk_install_fs(disk_dev_t* device, uint8_t type)
     return -1;
 
   /* Try to install */
-  if (!fs->f_install(fs, device))
+  if (fs->f_install(fs, device))
     return -2;
 
+  return 0;
   /* Make sure the installed filesystem is valid */
   return disk_probe_fs(device);
 }
