@@ -383,7 +383,7 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     return error;
 
   /* Make sure the first data buffer is also marked as the last, since there is currently only one buffer */
-  error = __fat32_set_cluster(fs, FAT32_CLUSTER_LIMIT, first_cluster);
+  error = __fat32_set_cluster(fs, FAT32_CLUSTER_EOF, first_cluster);
 
   if (error)
     return error;
@@ -704,7 +704,7 @@ __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t
 
     /* Add this cluster to the end of this files chain */
     __fat32_set_cluster(file->parent_fs, next_free_cluster, file_end_cluster);
-    __fat32_set_cluster(file->parent_fs, FAT32_CLUSTER_LIMIT, next_free_cluster);
+    __fat32_set_cluster(file->parent_fs, FAT32_CLUSTER_EOF, next_free_cluster);
 
     did_overflow = true;
     file_end_cluster = next_free_cluster;
@@ -1043,7 +1043,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   bpb.bytes_per_sector = sector_size;
   /* TODO: make sure 2+Tib devices don't fuck us here */
   bpb.sector_num_fat32 = device->total_size / sector_size;
-  /* TODO: calculate this */
+  /* NOTE: For FAT32 this is zero, but FAT12 and FAT16 do use this field */
   bpb.root_entries_count = 0;
 
   cluster_count = bpb.sector_num_fat32 / bpb.sectors_per_cluster;
@@ -1052,11 +1052,18 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   bpb.fat_num = 2;
   bpb.sectors_num_per_fat = fat_size_sectors;
-  bpb.reserved_sector_count = 32;
+  /* ??? */
+  bpb.reserved_sector_count = bpb.sectors_per_cluster;
   bpb.root_cluster = 2;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
   bpb.ext_flags |= (1 << 7);
+
+  if ((device->flags & DISK_FLAG_REMOVABLE) == DISK_FLAG_REMOVABLE)
+    bpb.media_type = 0xF0;
+  else 
+    bpb.media_type = 0xF8;
+
   bpb.fs_version = 0;
   bpb.fs_info_sector = 1;
   /* Make bios happy */
@@ -1073,12 +1080,23 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   private->usable_clusters_start = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat));
   */
 
-  /* Zero the entire disk */
-  uint8_t nullbytes[sector_size];
-  memset(nullbytes, 0, sector_size);
+  /* TODO: zero FATs */
+  uint32_t cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
+  uint8_t* zeros = heap_allocate(cluster_size);
 
-  /* Write the bpb to the first sector of the device */
-  return device->f_write(device, &bpb, sizeof(bpb), 0);
+  memset(zeros, 0, cluster_size);
+
+  /* Mask any fucky bits to comply with FAT32 standards */
+  uint32_t value = FAT32_CLUSTER_EOF & 0x0fffffff;
+
+  /* Make sure the root dir entry does not die lol */
+  device->f_write(device, &value, sizeof(value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(value)));
+
+  /* Make sure there is nothing at cluster 2 */
+  uint32_t current_cluster_offset = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat)) * bpb.bytes_per_sector;
+  device->f_write(device, zeros, cluster_size, current_cluster_offset);
+
+  heap_free(zeros);
 
   /*
    * What to do:
@@ -1087,7 +1105,9 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
    * - Create the FATs
    * - Create a root directory entry
    */
-  return 0;
+
+  /* Write the bpb to the first sector of the device */
+  return device->f_write(device, &bpb, sizeof(bpb), 0);
 }
 
 light_fs_t fat32_fs = 

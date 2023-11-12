@@ -10,6 +10,7 @@ struct gpt_header;
 
 #define DISK_FLAG_PARTITION     0x00000001
 #define DISK_FLAG_OPTICAL       0x00000002
+#define DISK_FLAG_REMOVABLE     0x00000004
 
 typedef struct disk_dev {
 
@@ -54,6 +55,7 @@ typedef struct disk_dev {
   int (*f_write)(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset);
   int (*f_bread)(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba);
   int (*f_bwrite)(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba);
+  int (*f_flush)(struct disk_dev* dev);
 } disk_dev_t;
 
 void register_bootdevice(disk_dev_t* device);
@@ -69,7 +71,10 @@ int disk_init_cache(disk_dev_t* device);
 uint8_t disk_select_cache(disk_dev_t* device, uint64_t block);
 int disk_clear_cache(disk_dev_t* device, uint64_t block);
 
+int disk_flush(disk_dev_t* device);
+
 int disk_install_partitions(disk_dev_t* device);
+bool disk_did_boot_from(disk_dev_t* device);
 
 typedef struct gpt_header {
   uint8_t signature[8];

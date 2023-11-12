@@ -26,6 +26,12 @@ static const char* disk_labels[] = {
 static const uint32_t max_disks = sizeof(disk_labels) / sizeof(*disk_labels);
 static button_component_t* current_device;
 
+#define INSTALL_ERR_MASK        (0x80000000)
+#define INSTALL_ERR(a)          (INSTALL_ERR_MASK | (a))
+
+#define INSTALL_ERR_NODISK      INSTALL_ERR(1)
+#define INSTALL_ERR_BOOTDEVICE  INSTALL_ERR(2)
+
 static int perform_install();
 
 #define DISK_CHOOSE_LABEL "Which disk do you want to install to?"
@@ -209,6 +215,11 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
 
 /*!
  * @brief: Do the installation on the selected disk
+ *
+ * TODO: check the selected install disk to see if we didn't boot from that
+ * TODO: copy all the files from our root filesystem (The filesystem that the bootloader currently lives on and was booted from) to
+ *       the selected install disks partitions. This means moving the bootloader, kernel, ramdisk, ect. to the System partition and
+ *       the drivers, apps, ect. will go into the Data partition
  */
 static int 
 perform_install()
@@ -218,12 +229,15 @@ perform_install()
   disk_dev_t* cur_partition;
 
   if (!current_device)
-    return -1;
+    return INSTALL_ERR_NODISK;
 
   this = (disk_dev_t*)current_device->private;
 
   if (!this)
-    return -2;
+    return INSTALL_ERR_NODISK;
+
+  if (disk_did_boot_from(this))
+    return INSTALL_ERR_BOOTDEVICE;
 
   error = disk_install_partitions(this);
 
@@ -243,9 +257,13 @@ perform_install()
     if (error)
       return error;
 
+    /* TMP */
+    break;
+
     cur_partition = cur_partition->next_partition;
   }
 
+  this->f_flush(this);
   return 0;
   /*
    * TODO: install =)

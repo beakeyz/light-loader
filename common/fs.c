@@ -107,7 +107,6 @@ disk_install_fs(disk_dev_t* device, uint8_t type)
   if (fs->f_install(fs, device))
     return -2;
 
-  return 0;
   /* Make sure the installed filesystem is valid */
   return disk_probe_fs(device);
 }
@@ -150,6 +149,7 @@ disk_probe_fs(disk_dev_t* device)
 
     /* Make sure the old filesystem has a cleared private field (this is now owned by copy_fs) */
     fs->private = nullptr;
+    fs->device = nullptr;
   }
 
   return error;

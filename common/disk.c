@@ -127,6 +127,30 @@ disk_select_cache(disk_dev_t* device, uint64_t block)
   return preferred_cache_idx;
 }
 
+int 
+disk_flush(disk_dev_t* device)
+{
+  uintptr_t current_block;
+  uint8_t* current_ptr;
+
+  /* Flush any caches to disk */
+  for (uint8_t i = 0; i < 8; i++) {
+
+    /* Skip non-dirty cache entries */
+    if ((device->cache.cache_dirty_flags & (1 << i)) == 0)
+      continue;
+
+    current_block = device->cache.cache_block[i];
+    current_ptr = device->cache.cache_ptr[i];
+
+    device->f_bwrite(device, current_ptr, 1, current_block);
+  }
+
+  /* Also flush device internals */
+  device->f_flush(device);
+  return 0;
+}
+
 static disk_dev_t* 
 create_and_link_partition_dev(disk_dev_t* parent, uintptr_t start_lba, uintptr_t ending_lba)
 {
@@ -273,6 +297,8 @@ gpt_entry_set_partition_name(gpt_entry_t* entry, const char* name)
 static gpt_entry_t* 
 disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char* name, uintptr_t start_offset, size_t size, uintptr_t attrs, guid_t guid)
 {
+  memset(entry, 0, sizeof(*entry));
+
   entry->attributes = attrs;
   entry->starting_lba = ALIGN_DOWN(start_offset, device->effective_sector_size) / device->effective_sector_size;
   entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
@@ -365,6 +391,7 @@ disk_install_partitions(disk_dev_t* device)
 
   /* Protective MBR should be created at lba 0 */
   header_template->my_lba = 1;
+  /* NOTE: This value gives anything that checks this a seizure */
   header_template->alt_lba = -1;
 
   header_template->partition_entry_num = partition_count;
@@ -372,8 +399,8 @@ disk_install_partitions(disk_dev_t* device)
   /* Right after the header */
   header_template->partition_entry_lba = 2;
 
-  //header_template->first_usable_lba = 2048;
-  header_template->first_usable_lba = (ALIGN_UP(total_required_size, device->effective_sector_size) / device->effective_sector_size);
+  header_template->first_usable_lba = 2048;
+  //header_template->first_usable_lba = (ALIGN_UP(total_required_size, device->effective_sector_size) / device->effective_sector_size);
 
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
   header_template->last_usable_lba = device->total_sectors - 1;
@@ -390,7 +417,7 @@ disk_install_partitions(disk_dev_t* device)
   }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN | GPT_ATTR_BIOS_BOOTABLE, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
   disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 256ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
@@ -416,15 +443,35 @@ disk_install_partitions(disk_dev_t* device)
 
   header_template->header_crc32 = crc_buffer;
 
-  uint8_t* zeros = heap_allocate(device->effective_sector_size);
-  memset(zeros, 0, device->effective_sector_size);
-
-  device->f_write(device, zeros, device->effective_sector_size, 0);
-  /* Write this on lba 1 =) */
+  /* 
+   * Write this on lba 1 =) 
+   * FIXME: when we only call f_write once here, we are fine and the GPT sceme gets detected 
+   * accross platforms. If we don't and we either do a write call right before here to clear lba 0, or
+   * we go and install filesystems on the created partitions, the GPT does not get detected anymore. Does this 
+   * have to do with some weird bug in the disk IO caching stuff in disk.c? Or some other weird bug? IDK?
+   */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
 
-  heap_free(zeros);
   heap_free(gpt_buffer);
 
   return 0;
+}
+
+/*!
+ * @brief: Check if @device is the disk we booted from
+ *
+ * How are we going to do that?
+ * We'll need to ask our platform backend for the serial number of the underlying disk or something
+ * We can do this in a few ways:
+ *  - We can simply create a disk_dev_t function opt that backends can implement, that give us access to the disks 
+ *    platform identifiers. This way we can match the identifier of the boot device against the identifier of @device
+ *  - We can have a hash field inside of disk_dev_t structs, which must be set by the platform backend, when creating their
+ *    disk devices. What exactly is used inside the hash is up to the backend, but in the case of EFI, it will most likely
+ *    be the device path string or something.
+ */
+bool 
+disk_did_boot_from(disk_dev_t* device)
+{
+  /* TODO: */
+  return false;
 }

@@ -167,6 +167,23 @@ __bwrite(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
   return 0;
 }
 
+/*!
+ * @brief: Just to be sure lol
+ *
+ */
+static int
+__flush(struct disk_dev* dev)
+{
+  efi_disk_stuff_t* stuff;
+
+  if (!dev || !dev->private)
+    return -1;
+
+  stuff = dev->private;
+
+  return stuff->blockio->FlushBlocks(stuff->blockio);
+}
+
 static disk_dev_t*
 create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio) 
 {
@@ -208,11 +225,15 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
 
   ret->effective_sector_size = media->BlockSize;
   ret->sector_size = media->BlockSize * ret->optimal_transfer_factor;
+  
+  if (media->RemovableMedia)
+    ret->flags |= DISK_FLAG_REMOVABLE;
 
   ret->f_read = __read;
   ret->f_write = __write;
   ret->f_bread = __bread;
   ret->f_bwrite = __bwrite;
+  ret->f_flush = __flush;
 
   disk_init_cache(ret);
 
