@@ -1,7 +1,6 @@
 #ifndef __LIGHTLOADER_FS__
 #define __LIGHTLOADER_FS__
 
-#include "disk.h"
 #include "stddef.h"
 #include <stdint.h>
 
@@ -73,7 +72,7 @@ is_fs_used(light_fs_t* fs)
 
 light_fs_t* get_fs(uint8_t type);
 
-int disk_install_fs(disk_dev_t* device, uint8_t type);
-int disk_probe_fs(disk_dev_t* device);
+int disk_install_fs(struct disk_dev* device, uint8_t type);
+int disk_probe_fs(struct disk_dev* device);
 
 #endif // !__LIGHTLOADER_FS__

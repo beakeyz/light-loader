@@ -42,7 +42,7 @@ int fcreate(const char* path)
 {
   disk_dev_t* rootdevice = get_bootdevice();
 
-  if (!rootdevice || !rootdevice->filesystem || !rootdevice->filesystem->f_create_path)
+  if (!rootdevice || !rootdevice->filesystem || !rootdevice->filesystem)
     return -1;
 
   return rootdevice->filesystem->f_create_path(rootdevice->filesystem, path);

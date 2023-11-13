@@ -2,15 +2,16 @@
 #define __LIGHTLOADER_DISK__
 
 #include "efidef.h"
+#include "fs.h"
 #include "guid.h"
 #include <stdint.h>
 
-struct light_fs;
 struct gpt_header;
 
 #define DISK_FLAG_PARTITION     0x00000001
 #define DISK_FLAG_OPTICAL       0x00000002
 #define DISK_FLAG_REMOVABLE     0x00000004
+#define DISK_FLAG_DID_INSTALL   0x00000008
 
 typedef struct disk_dev {
 
@@ -41,7 +42,7 @@ typedef struct disk_dev {
     uint8_t cache_usage_count[8];
   } cache;
 
-  struct light_fs* filesystem;
+  light_fs_t* filesystem;
 
   union {
     struct gpt_entry_t* partition_entry;
@@ -53,6 +54,7 @@ typedef struct disk_dev {
   /* I/O opperations for every disk */
   int (*f_read)(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset);
   int (*f_write)(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset);
+  int (*f_write_zero)(struct disk_dev* dev, size_t size, uintptr_t offset);
   int (*f_bread)(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba);
   int (*f_bwrite)(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba);
   int (*f_flush)(struct disk_dev* dev);

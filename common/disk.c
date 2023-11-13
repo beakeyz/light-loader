@@ -174,13 +174,15 @@ create_and_link_partition_dev(disk_dev_t* parent, uintptr_t start_lba, uintptr_t
   ret->sector_size = parent->sector_size;
 
   ret->first_sector = start_lba;
-  ret->total_size = (ending_lba - start_lba) * ret->effective_sector_size;
+  ret->total_sectors = (ending_lba - start_lba);
+  ret->total_size = ret->total_sectors * ret->effective_sector_size;
 
   /* Ops */
   ret->f_bread = parent->f_bread;
   ret->f_bwrite = parent->f_bwrite;
   ret->f_read = parent->f_read;
   ret->f_write = parent->f_write;
+  ret->f_write_zero = parent->f_write_zero;
 
   disk_init_cache(ret);
 
@@ -304,8 +306,8 @@ disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char*
   entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
 
   /* Make sure to clamp the end lba */
-  if (entry->ending_lba >= device->total_sectors)
-    entry->ending_lba = device->total_sectors - 1;
+  //if (entry->ending_lba >= device->total_sectors)
+    //entry->ending_lba = device->total_sectors - 1;
 
   entry->partition_type_guid = guid;
 
@@ -356,6 +358,7 @@ disk_install_partitions(disk_dev_t* device)
   void* gpt_buffer;
   gpt_header_t* header_template;
   gpt_entry_t* entry_start;
+  uintptr_t previous_offset;
   gpt_entry_t* previous_entry;
 
   /* Can't install to a partition lmao */
@@ -389,11 +392,6 @@ disk_install_partitions(disk_dev_t* device)
 
   memcpy(header_template->signature, "EFI PART", 8);
 
-  /* Protective MBR should be created at lba 0 */
-  header_template->my_lba = 1;
-  /* NOTE: This value gives anything that checks this a seizure */
-  header_template->alt_lba = -1;
-
   header_template->partition_entry_num = partition_count;
   header_template->partition_entry_size = sizeof(gpt_entry_t);
   /* Right after the header */
@@ -404,6 +402,11 @@ disk_install_partitions(disk_dev_t* device)
 
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
   header_template->last_usable_lba = device->total_sectors - 1;
+
+  /* Protective MBR should be created at lba 0 */
+  header_template->my_lba = 1;
+  /* NOTE: This value gives anything that checks this a seizure */
+  header_template->alt_lba = header_template->last_usable_lba;
 
   header_template->revision = 0x00010000;
   header_template->header_size = sizeof(*header_template);
@@ -417,10 +420,11 @@ disk_install_partitions(disk_dev_t* device)
   }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_offset = gpt_entry_get_end_offset(device, previous_entry);
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
-  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 4ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Create a CRC of the partition entries */
   s = BS->CalculateCrc32(entry_start, partition_count * sizeof(gpt_entry_t), &crc_buffer);
@@ -451,6 +455,7 @@ disk_install_partitions(disk_dev_t* device)
    * have to do with some weird bug in the disk IO caching stuff in disk.c? Or some other weird bug? IDK?
    */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
+  device->f_write(device, gpt_buffer, 512, header_template->alt_lba);
 
   heap_free(gpt_buffer);
 

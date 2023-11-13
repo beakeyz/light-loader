@@ -233,7 +233,7 @@ perform_install()
 
   this = (disk_dev_t*)current_device->private;
 
-  if (!this)
+  if (!this || (this->flags & DISK_FLAG_DID_INSTALL) == DISK_FLAG_DID_INSTALL)
     return INSTALL_ERR_NODISK;
 
   if (disk_did_boot_from(this))
@@ -257,17 +257,16 @@ perform_install()
     if (error || !cur_partition->filesystem)
       return error;
 
+    /* TODO: copy over the needed files for this filesystem */
     error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "test.txt");
 
     if (error)
       return error;
 
-    /* TMP */
-    break;
-
     cur_partition = cur_partition->next_partition;
   }
 
+  this->flags |= DISK_FLAG_DID_INSTALL;
   this->f_flush(this);
   return 0;
   /*

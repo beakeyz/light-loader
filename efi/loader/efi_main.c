@@ -17,7 +17,7 @@
 #include <memory.h>
 #include <file.h>
 
-#define INITIAL_HEAPSIZE 64 * Mib 
+#define INITIAL_HEAPSIZE 128 * Mib
 
 static efi_ctx_t __efi_ctx = { 0 };
 efi_ctx_t* efi_ctx;

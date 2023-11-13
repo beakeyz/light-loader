@@ -46,10 +46,10 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
   const char* fat32_ident_fancy = (((void*)&bpb) + 0x03);
 
   if (strncmp(fat32_ident, "FAT", 3) != 0 && strncmp(fat32_ident_fancy, "FAT32", 5) != 0)
-    return 0;
+    return -1;
 
   if (!bpb.bytes_per_sector)
-    return -1;
+    return -2;
 
   private = heap_allocate(sizeof(fat_private_t));
 
@@ -68,6 +68,12 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
 
   /* Not FAT32 */
   if (private->cluster_count < 65525) {
+    printf(to_string(private->cluster_count));
+    printf(to_string(private->total_usable_sectors));
+    printf(to_string(bpb.sectors_per_cluster));
+    printf(to_string(device->total_sectors));
+    printf(to_string(device->total_size));
+    for (;;) {}
     heap_free(private);
     return -1;
   }
@@ -988,7 +994,9 @@ fat32_close(light_fs_t* fs, light_file_t* file)
  * at: https://academy.cba.mit.edu/classes/networking_communications/SD/FAT.pdf
  */
 struct disksize_clustercount_mapping {
+  /* Disk size in 512 byte sectors */
   uint32_t DiskSize;
+  /* Sectors per FAT32 cluster */
   uint8_t SecPerClusVal;
 };
 
@@ -1004,7 +1012,8 @@ static struct disksize_clustercount_mapping DskTableFAT32 [] = {
 static uint32_t dsk_table_mapping_count = sizeof(DskTableFAT32) / sizeof(*DskTableFAT32);
 
 /*!
- * @brief: TODO:
+ * @brief: 
+ * TODO:
  */
 int 
 fat32_install(light_fs_t* fs, disk_dev_t* device)
@@ -1013,6 +1022,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   uint32_t sector_size;
   uint32_t cluster_count;
   uint32_t fat_size_sectors;
+  uintptr_t current_disksize;
   fat_bpb_t bpb;
   void* fat;
   fat_dir_entry_t root_entry;
@@ -1027,10 +1037,13 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   memcpy("FAT32", bpb.oem_name, 6);
   memcpy("FAT", bpb.reserved, 4);
 
+  /* Scan for the best sector -> cluster ratio */
   for (uint32_t i = 0; i < dsk_table_mapping_count; i++) {
+    /* NOTE: Make sure DiskSize is 64-bit */
+    current_disksize = (uintptr_t)DskTableFAT32[i].DiskSize * sector_size;
 
     /* If we've reached the last mapping, we'll just use that */
-    if (device->total_size > DskTableFAT32[i].DiskSize && i+1 != dsk_table_mapping_count)
+    if (device->total_size > current_disksize && i+1 != dsk_table_mapping_count)
       continue;
     
     bpb.sectors_per_cluster = DskTableFAT32[i].SecPerClusVal;
@@ -1049,9 +1062,9 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   cluster_count = bpb.sector_num_fat32 / bpb.sectors_per_cluster;
   /* TODO: recursively do this calculation to minimize wasted space */
-  fat_size_sectors = (cluster_count * 4) / sector_size;
+  fat_size_sectors = (cluster_count * sizeof(uint32_t)) / sector_size;
 
-  bpb.fat_num = 2;
+  bpb.fat_num = 1;
   bpb.sectors_num_per_fat = fat_size_sectors;
   /* ??? */
   bpb.reserved_sector_count = bpb.sectors_per_cluster;
@@ -1085,16 +1098,9 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   uint32_t cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
   uint32_t fats_size = fat_size_sectors * bpb.bytes_per_sector;
 
-  /* Allocate a zero buffer to clear the FATs */
-  uint8_t* zeros = heap_allocate(fats_size);
-  memset(zeros, 0, fats_size);
-
   /* Clear the FATs */
   for (uint32_t i = 0; i < bpb.fat_num; i++)
-    device->f_write(device, zeros, fats_size, (bpb.reserved_sector_count * bpb.bytes_per_sector) + (i * fats_size));
-
-  /* Don't need that anymore */
-  heap_free(zeros);
+    device->f_write_zero(device, fats_size, (bpb.reserved_sector_count * bpb.bytes_per_sector) + (i * fats_size));
 
   /* Mask any fucky bits to comply with FAT32 standards */
   uint32_t eof_value = FAT32_CLUSTER_EOF & 0x0fffffff;
@@ -1103,7 +1109,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   device->f_write(device, &eof_value, sizeof(eof_value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(eof_value)));
 
   /* Reallocate in order to clear the root cluster */
-  zeros = heap_allocate(cluster_size);
+  uint8_t* zeros = heap_allocate(cluster_size);
   memset(zeros, 0, cluster_size);
 
   /* Make sure there is nothing at cluster 2 */

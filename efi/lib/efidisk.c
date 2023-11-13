@@ -135,6 +135,59 @@ __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
   return 0;
 }
 
+/*!
+ * @brief: Special Routine to clear a region of disk
+ */
+static int
+__write_zero(struct disk_dev* dev, size_t size, uintptr_t offset)
+{
+  int error;
+  uint64_t current_block, current_offset, current_delta;
+  uint64_t lba_size, read_size;
+  uint8_t current_cache_idx;
+
+  current_offset = 0;
+  lba_size = dev->sector_size;
+
+  /* Add stuff */
+  offset += (dev->first_sector * dev->effective_sector_size);
+
+  while (current_offset < size) {
+    current_block = (offset + current_offset) / lba_size;
+    current_delta = (offset + current_offset) % lba_size;
+
+    /* Simply select a cache for this block */
+    current_cache_idx = disk_select_cache(dev, current_block);
+
+    /* Fuck */
+    if (current_cache_idx == 0xFF)
+      return -1;
+
+    /* Make sure we have no lingering caches left of this block */
+    disk_clear_cache(dev, current_block);
+
+    read_size = size - current_offset;
+
+    /* Constantly shave off lba_size */
+    if (read_size > lba_size - current_delta)
+      read_size = lba_size - current_delta;
+
+    /* Clear part of the buffer */
+    memset(&(dev->cache.cache_ptr[current_cache_idx])[current_delta], NULL, read_size);
+
+    /* Write a part of the buffer to disk */
+    error = dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block);
+
+    /* Try to write this fucker to disk lol */
+    if (error)
+      return -2;
+
+    current_offset += read_size;
+  }
+
+  return 0;
+}
+
 static int
 __bread(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 {
@@ -145,7 +198,7 @@ __bread(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba)
 
   status = stuff->blockio->ReadBlocks(stuff->blockio, stuff->media->MediaId, lba * dev->optimal_transfer_factor, count * dev->sector_size, buffer);
 
-  if (EFI_ERROR(status))
+  if (EFI_ERROR(status)) 
     return status;
 
   return 0;
@@ -231,6 +284,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
 
   ret->f_read = __read;
   ret->f_write = __write;
+  ret->f_write_zero = __write_zero;
   ret->f_bread = __bread;
   ret->f_bwrite = __bwrite;
   ret->f_flush = __flush;

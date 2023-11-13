@@ -1,5 +1,6 @@
 #include "fs.h"
 #include <stddef.h>
+#include "disk.h"
 #include "fs/fat/fat32.h"
 #include "heap.h"
 #include <memory.h>
