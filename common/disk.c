@@ -420,7 +420,7 @@ disk_install_partitions(disk_dev_t* device)
   previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 512 * Mib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
-  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 256ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", gpt_entry_get_end_offset(device, previous_entry), 4ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
 
   /* Create a CRC of the partition entries */
   s = BS->CalculateCrc32(entry_start, partition_count * sizeof(gpt_entry_t), &crc_buffer);

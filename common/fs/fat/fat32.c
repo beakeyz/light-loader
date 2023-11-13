@@ -149,7 +149,7 @@ __fat32_read_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
 
   fat_private_t* p;
 
-  if (!fs || !fs->private)
+  if (!fs || !fs->private || cluster < 2)
     return -1;
 
   p = fs->private;
@@ -176,7 +176,7 @@ __fat32_write_cluster(light_fs_t* fs, void* buffer, uint32_t cluster)
 
   fat_private_t* p;
 
-  if (!fs || !fs->private)
+  if (!fs || !fs->private || cluster < 2)
     return -1;
 
   p = fs->private;
@@ -204,8 +204,9 @@ __fat32_find_free_cluster(light_fs_t* fs, uint32_t* buffer)
   fat_private_t* p;
 
   p = fs->private;
-  current_index = 0;
-  cluster_buff = 0xff;
+  /* Start at index 2, cuz the first 2 clusters are weird lol */
+  current_index = 2;
+  cluster_buff = 0;
 
   while (current_index < p->cluster_count) {
 
@@ -234,7 +235,7 @@ __fat32_find_free_cluster(light_fs_t* fs, uint32_t* buffer)
 
 static uint32_t __fat32_dir_entry_get_start_cluster(fat_dir_entry_t* e)
 {
-  return (e->dir_frst_cluster_lo & 0xffff) | ((uint32_t)e->dir_frst_cluster_hi << 16);
+  return ((uint32_t)e->dir_frst_cluster_lo & 0xffff) | ((uint32_t)e->dir_frst_cluster_hi << 16);
 }
 
 static uint32_t __fat32_file_get_start_cluster(fat_file_t* ff)
@@ -298,6 +299,8 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
 {
   int error;
   fat_private_t* p;
+  void* first_data_buffer;
+  uint32_t first_cluster;
   uint32_t last_cluster;
   uint32_t current_dir_entry_idx;
   uint32_t potential_dir_entry_count;
@@ -335,8 +338,7 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     current_dir_entry_idx++;
   }
 
-  void* first_data_buffer;
-  uint32_t first_cluster = NULL;
+  first_cluster = NULL;
   error = __fat32_find_free_cluster(fs, &first_cluster);
 
   if (error)
@@ -919,7 +921,6 @@ fat32_create_path(light_fs_t* fs, const char* path)
   fat_dir_entry_t current = p->root_entry;
 
   /* Do opening lmao */
-
   for (uintptr_t i = 0; i < path_size; i++) {
 
     /* Stop either at the end, or at any '/' char */
@@ -1053,7 +1054,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   bpb.fat_num = 2;
   bpb.sectors_num_per_fat = fat_size_sectors;
   /* ??? */
-  bpb.reserved_sector_count = bpb.sectors_per_cluster * 2;
+  bpb.reserved_sector_count = bpb.sectors_per_cluster;
   bpb.root_cluster = 2;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
@@ -1082,15 +1083,28 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   /* TODO: zero FATs */
   uint32_t cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
-  uint8_t* zeros = heap_allocate(cluster_size);
+  uint32_t fats_size = fat_size_sectors * bpb.bytes_per_sector;
 
-  memset(zeros, 0, cluster_size);
+  /* Allocate a zero buffer to clear the FATs */
+  uint8_t* zeros = heap_allocate(fats_size);
+  memset(zeros, 0, fats_size);
+
+  /* Clear the FATs */
+  for (uint32_t i = 0; i < bpb.fat_num; i++)
+    device->f_write(device, zeros, fats_size, (bpb.reserved_sector_count * bpb.bytes_per_sector) + (i * fats_size));
+
+  /* Don't need that anymore */
+  heap_free(zeros);
 
   /* Mask any fucky bits to comply with FAT32 standards */
-  uint32_t value = FAT32_CLUSTER_EOF & 0x0fffffff;
+  uint32_t eof_value = FAT32_CLUSTER_EOF & 0x0fffffff;
 
   /* Make sure the root dir entry does not die lol */
-  device->f_write(device, &value, sizeof(value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(value)));
+  device->f_write(device, &eof_value, sizeof(eof_value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(eof_value)));
+
+  /* Reallocate in order to clear the root cluster */
+  zeros = heap_allocate(cluster_size);
+  memset(zeros, 0, cluster_size);
 
   /* Make sure there is nothing at cluster 2 */
   uint32_t current_cluster_offset = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat)) * bpb.bytes_per_sector;

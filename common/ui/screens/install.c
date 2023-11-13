@@ -254,6 +254,11 @@ perform_install()
      */
     error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
 
+    if (error || !cur_partition->filesystem)
+      return error;
+
+    error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "test.txt");
+
     if (error)
       return error;
 

@@ -6,8 +6,8 @@
 #define FAT_SECTOR_SIZE 512
 
 #define FAT32_MAX_FILENAME_LENGTH 261
-#define FAT32_CLUSTER_LIMIT 0xffffff7
-#define FAT32_CLUSTER_EOF 0x0fffffff
+#define FAT32_CLUSTER_LIMIT 0x0ffffff7
+#define FAT32_CLUSTER_EOF   0x0fffffff
 
 #define FAT_ATTR_READ_ONLY 0x01
 #define FAT_ATTR_HIDDEN 0x02
