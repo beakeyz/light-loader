@@ -1053,7 +1053,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   bpb.fat_num = 2;
   bpb.sectors_num_per_fat = fat_size_sectors;
   /* ??? */
-  bpb.reserved_sector_count = bpb.sectors_per_cluster;
+  bpb.reserved_sector_count = bpb.sectors_per_cluster * 2;
   bpb.root_cluster = 2;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
