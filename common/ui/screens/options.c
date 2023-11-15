@@ -4,9 +4,39 @@
 #include "stddef.h"
 #include "ui/box.h"
 #include "ui/button.h"
+#include "ui/input_box.h"
 #include <stdio.h>
 #include <font.h>
 #include <ui/screens/options.h>
+
+struct light_option l_options[] = {
+  {
+    "Use kterm",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0, }
+  },
+  {
+    "Create ENV file on install",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0, }
+  },
+  {
+    "Use ramdisk",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0, }
+  },
+  {
+    "Test option two",
+    LOPTION_TYPE_STRING,
+    (uintptr_t)"Test string lmao",
+    { 0, }
+  },
+};
+
+static uint32_t l_options_len = sizeof(l_options) / sizeof(l_options[0]);
 
 int test_onclick(button_component_t* comp)
 {
@@ -56,8 +86,6 @@ int open_test_onclick(button_component_t* comp)
   return 0;
 }
 
-bool sicko = false;
-
 /*
  * Options we need to implement:
  *  - resolution
@@ -70,14 +98,27 @@ bool sicko = false;
 int 
 construct_optionsscreen(light_component_t** root, light_gfx_t* gfx)
 {
-  sicko = false;
+  uint32_t current_y = 52;
 
-  create_button(root, "Test fat", 24, 50, 156, 26, test_onclick, nullptr);
-  create_button(root, "Open Test fat", 24, 80, 156, 26, open_test_onclick, nullptr);
+  /*
+   * Loop over all the options and add them to the option screen
+   */
+  for (uint32_t i = 0; i < l_options_len; i++) {
+    switch (l_options[i].type) {
+      case LOPTION_TYPE_BOOL:
+        l_options[i].btn = create_switch(root, l_options[i].name, 24, current_y, 312, 26, (bool*)&l_options[i].value);
 
-  create_switch(root, "Fuc you", 24, 140, 245, gfx->current_font->height * 2, &sicko);
+        current_y += l_options[i].btn->parent->height + (l_options[i].btn->parent->height / 2);
+        break;
+      case LOPTION_TYPE_STRING:
+        l_options[i].input_box = create_inputbox(root, l_options[i].name, (char*)l_options[i].value, 24, current_y, 312, 26);
 
-  /* TODO: ... */
+        current_y += l_options[i].input_box->parent->height + (l_options[i].input_box->parent->height / 2);
+        break;
+
+    }
+  }
+
   return 0;
 }
 
