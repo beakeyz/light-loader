@@ -653,7 +653,9 @@ gfx_enter_frontend()
   /* Main background color */
   create_box(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, 0, true, DARK_GRAY);
 
+  printf("yay");
   create_image(&root_component, nullptr, 0, 0, light_gfx.width, light_gfx.height, IMAGE_TYPE_BMP, "res/bckgrnd.bmp");
+  printf("yay");
 
   /* Navigation bar */
   create_box(&root_component, nullptr, 0, 0, light_gfx.width, 42, 0, true, GRAY);

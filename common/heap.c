@@ -21,9 +21,9 @@ typedef struct heap_node {
 #define HEAP_NODE_SIGNATURE 0x1AA5
 
 #define HEAP_NODE_FLAG_USED 0x0001
-#define HEAP_NODE_FLAG_
+// #define HEAP_NODE_FLAG_
 
-#define INITIAL_HEAP_LIMIT 16 * Mib 
+#define INITIAL_HEAP_LIMIT 64 * Mib 
 
 static heap_node_t*
 node_from_address(uint64_t address)
