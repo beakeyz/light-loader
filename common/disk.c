@@ -422,9 +422,13 @@ disk_install_partitions(disk_dev_t* device)
   /* Realistically, the kernel + bootloader should not take more space than this */
   previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
+  /* Set this partition to be the system partition */
+  device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
   disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  /* Set this partition to be the data partition */
+  device->next_partition->flags |= DISK_FLAG_DATA_PART;
 
   /* Create a CRC of the partition entries */
   s = BS->CalculateCrc32(entry_start, partition_count * sizeof(gpt_entry_t), &crc_buffer);

@@ -257,11 +257,33 @@ perform_install()
     if (error || !cur_partition->filesystem)
       return error;
 
-    /* TODO: copy over the needed files for this filesystem */
-    error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "test.txt");
+    switch (cur_partition->flags & (DISK_FLAG_SYS_PART|DISK_FLAG_DATA_PART)) {
+      case DISK_FLAG_SYS_PART:
+        /* 
+         * TODO: copy over the needed files for this filesystem 
+         * For the system partition, this will be:
+         *  - The files on the boot device
+         *  - ...
+         */
+        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "sys.txt");
+        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "Test/sys.txt");
 
-    if (error)
-      return error;
+        if (error)
+          return error;
+        break;
+      case DISK_FLAG_DATA_PART:
+        /*
+         * TODO: copy over the needed files for this filesystem 
+         * For the data partition, that will be:
+         *  - All the files that are inside the ramdisk
+         *  - ...
+         */
+        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "data.txt");
+
+        if (error)
+          return error;
+        break;
+    }
 
     cur_partition = cur_partition->next_partition;
   }
@@ -274,10 +296,8 @@ perform_install()
    *
    * 1) Clear the entire target disk
    * 2) Impose our own partitioning layout, which looks like:
-   *    - 0] Gap: Unformatted partition that covers any protective datastructures on our disk
    *    - 1] Boot partition: FAT32 formatted and contains our bootloader and kernel binaries, resources for our bootloader and kernel configuration
-   *    - 2] Gap 2: Buffer between the boot partition and the data partition, in order to protect us from faulty writes ;-;
-   *    - 3] Data partition: Contains our system files and userspace files (either FAT32, ext2 or our own funky filesystem)
+   *    - 2] Data partition: Contains our system files and userspace files (either FAT32, ext2 or our own funky filesystem)
    * 3) Install the filesystems in the partitions that need them
    * 4) Copy the files to our boot partition
    * 5) Copy files to our System partition and create files that we might need

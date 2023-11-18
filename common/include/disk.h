@@ -13,6 +13,9 @@ struct gpt_header;
 #define DISK_FLAG_REMOVABLE     0x00000004
 #define DISK_FLAG_DID_INSTALL   0x00000008
 
+#define DISK_FLAG_DATA_PART     0x00000010
+#define DISK_FLAG_SYS_PART      0x00000020
+
 typedef struct disk_dev {
 
   uintptr_t first_sector;

@@ -68,12 +68,6 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
 
   /* Not FAT32 */
   if (private->cluster_count < 65525) {
-    printf(to_string(private->cluster_count));
-    printf(to_string(private->total_usable_sectors));
-    printf(to_string(bpb.sectors_per_cluster));
-    printf(to_string(device->total_sectors));
-    printf(to_string(device->total_size));
-    for (;;) {}
     heap_free(private);
     return -1;
   }
