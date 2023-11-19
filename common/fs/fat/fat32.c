@@ -372,7 +372,7 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     entry->filesize_bytes = 0;
   } else {
     /* Set the filesize for a generic file */
-    entry->filesize_bytes = p->cluster_size;
+    entry->filesize_bytes = 0;
   }
 
   /* Write our initial data into this cluster */
@@ -403,6 +403,7 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     /* (TODO) Write the cluster back to disk (and sync?) */
     error = __fat32_write_cluster(fs, cluster_buffer, last_cluster);
   } else {
+    printf("FUCK we have to allocate a new cluster for this fucko");
     for (;;) {}
     return -5;
   }
@@ -563,7 +564,7 @@ transform_fat_filename(char* dest, const char* src)
 }
 
 static int 
-__fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t* out, char* rel_path)
+__fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t* out, char* rel_path, uint32_t* offset)
 {
   int error;
   /* We always use this buffer if we don't support lfn */
@@ -631,6 +632,8 @@ __fat32_open_dir_entry(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t
       /* This our file/directory? */
       if (strncmp(transformed_buffer, (const char*)entry.dir_name, 11) == 0) {
         *out = entry;
+        if (offset)
+          *offset = i * sizeof(fat_dir_entry_t);
         error = 0;
         break;
       }
@@ -772,6 +775,17 @@ __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t
     current_offset = 0;
   }
 
+  fat_dir_entry_t* dir_entry = (fat_dir_entry_t*)((uintptr_t)cluster_buffer + ffile->direntry_cluster_offset);
+
+  if (__fat32_read_cluster(file->parent_fs, cluster_buffer, ffile->direntry_cluster))
+    goto free_and_exit;
+
+  /* Add the size to this file */
+  dir_entry->filesize_bytes += size;
+
+  __fat32_write_cluster(file->parent_fs, cluster_buffer, ffile->direntry_cluster);
+
+free_and_exit:
   heap_free(cluster_buffer);
   return 0;
 }
@@ -855,7 +869,13 @@ fat32_open(light_fs_t* fs, char* path)
     /* Place a null-byte */
     path_buffer[i] = '\0';
 
-    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx]);
+    ffile->direntry_cluster = __fat32_dir_entry_get_start_cluster(&current); 
+
+    /* NOTE: Offset is the offset from the first cluster of a dir entry */
+    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx], &ffile->direntry_cluster_offset);
+
+    ffile->direntry_cluster += (ffile->direntry_cluster_offset) / p->cluster_size;
+    ffile->direntry_cluster_offset %= p->cluster_size;
 
     if (error)
       goto fail_and_deallocate;
@@ -935,7 +955,7 @@ fat32_create_path(light_fs_t* fs, const char* path)
     path_buffer[i] = '\0';
 
     /* Keep opening shit until we fail lmao */
-    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx]);
+    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx], NULL);
 
     /* yay, this one does not exist! */
     if (error) {
@@ -977,9 +997,16 @@ fat32_create_path(light_fs_t* fs, const char* path)
 int 
 fat32_close(light_fs_t* fs, light_file_t* file)
 {
+  fat_file_t* ff;
+
+  ff = file->private;
+
   /* Deallocate caches */
+  heap_free(ff->cluster_chain);
   /* Deallocate file */
+  heap_free(ff);
   /* Deallocate */
+  heap_free(file);
   return 0;
 }
 

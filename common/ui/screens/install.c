@@ -10,6 +10,7 @@
 #include "ui/selector.h"
 #include <ui/screens/install.h>
 #include <font.h>
+#include <file.h>
 
 static const char* disk_labels[] = {
   "Disk 0",
@@ -214,6 +215,77 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
 }
 
 /*!
+ * @brief: Copy the contents of a file on bootdisk to @partition
+ *
+ * TODO: Correct error handling
+ */
+static int
+copy_from_bootdisk(disk_dev_t* partition, char* path)
+{
+  int error;
+  void* buffer;
+  light_ctx_t* ctx;
+  light_file_t* bootdisk_file;
+  light_file_t* this_file;
+
+  ctx = get_light_ctx();
+  buffer = NULL;
+  bootdisk_file = NULL;
+  this_file = NULL;
+
+  if (!partition || !partition->filesystem)
+    return -1;
+
+  /* Open the bootdisk file */
+  bootdisk_file = fopen(path);
+  
+  if (!bootdisk_file)
+    return -1;
+
+  /* Create a path on our partition fs */
+  error = partition->filesystem->f_create_path(partition->filesystem, path);
+
+  if (error)
+    goto dealloc_and_exit;
+
+  /* Open the file on our partition fs */
+  this_file = partition->filesystem->f_open(partition->filesystem, path);
+
+  if (!this_file)
+    goto dealloc_and_exit;
+
+  /* Allocate a buffer for our bootdisk file */
+  buffer = ctx->f_allocate(bootdisk_file->filesize);
+
+  if (!buffer)
+    goto dealloc_and_exit;
+
+  /* Read the contents from the bootdisk file to our buffer */
+  error = bootdisk_file->f_readall(bootdisk_file, buffer);
+
+  if (error)
+    goto dealloc_and_exit;
+
+  /* Write the buffer to our new file */
+  error = this_file->f_write(this_file, buffer, bootdisk_file->filesize, 0);
+
+  if (error)
+    goto dealloc_and_exit;
+
+dealloc_and_exit:
+  if (buffer)
+    ctx->f_deallcoate(buffer, bootdisk_file->filesize);
+
+  if (bootdisk_file)
+    bootdisk_file->f_close(bootdisk_file);
+
+  if (this_file)
+    this_file->f_close(bootdisk_file);
+
+  return error;
+}
+
+/*!
  * @brief: Do the installation on the selected disk
  *
  * TODO: check the selected install disk to see if we didn't boot from that
@@ -265,8 +337,18 @@ perform_install()
          *  - The files on the boot device
          *  - ...
          */
-        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "sys.txt");
-        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "Test/sys.txt");
+
+        error = copy_from_bootdisk(cur_partition, "aniva.elf");
+
+        if (error)
+          return error;
+
+        error = copy_from_bootdisk(cur_partition, "rdisk.igz");
+
+        if (error)
+          return error;
+
+        error = copy_from_bootdisk(cur_partition, "EFI/BOOT/BOOTX64.EFI");
 
         if (error)
           return error;

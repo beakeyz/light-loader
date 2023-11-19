@@ -87,6 +87,8 @@ typedef struct {
 typedef struct {
   uint32_t* cluster_chain;
   size_t cluster_chain_length;
+  uint32_t direntry_cluster;
+  uint32_t direntry_cluster_offset;
 } fat_file_t;
 
 void init_fat_fs();
