@@ -166,9 +166,9 @@ else
 
 	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
 
-	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
+	sudo mkdir -p $(BOOTRT_DIR)/efi/boot
 	sudo mkdir -p $(BOOTRT_DIR)/System
-	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/efi/boot/bootx64.efi
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)

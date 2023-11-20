@@ -12,8 +12,12 @@
 
 disk_dev_t* bootdevice = nullptr;
 
-#define DISK_SYSTEM_INDEX 0
-#define diSK_DATA_INDEX 1
+#define DISK_BUFFER_INDEX 0
+#define DISK_SYSTEM_INDEX 1
+#define DISK_DATA_INDEX 2
+
+#define LLOADER_PART_TYPE_UNUSED_GUID   \
+    { 0x8DA63339, 0x0007, 0x60C0, { 0xC4, 0x36, 0x08, 0x3A, 0xC8, 0x23, 0x09, 0x08 }, }
 
 void
 register_bootdevice(disk_dev_t* device)
@@ -332,7 +336,7 @@ gpt_entry_get_size(uint32_t entry_index)
         /* TODO: figure out how big the system index needs to be */
         return 0;
       }
-    case diSK_DATA_INDEX:
+    case DISK_DATA_INDEX:
       {
         /* TODO: figure out how big the data index needs to be */
         return 0;
@@ -419,14 +423,18 @@ disk_install_partitions(disk_dev_t* device)
     memset(this_entry, 0, sizeof(*this_entry));
   }
 
+  /* Create a buffer partition of 5 Megabytes */
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, 5 * Mib, GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_UNUSED_GUID);
+  previous_offset = gpt_entry_get_end_offset(device, previous_entry);
+
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", previous_offset, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
   /* Add partition entry for system data (TODO: calculate size dynamically) */
-  disk_add_gpt_partition_entry(device, &entry_start[diSK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   /* Set this partition to be the data partition */
   device->next_partition->flags |= DISK_FLAG_DATA_PART;
 

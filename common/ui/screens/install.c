@@ -320,17 +320,19 @@ perform_install()
 
   while (cur_partition) {
 
-    /*
-     * Install a filesystem on this partition 
-     * TODO: let the user choose it's filesystem
-     */
-    error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
-
-    if (error || !cur_partition->filesystem)
-      return error;
-
     switch (cur_partition->flags & (DISK_FLAG_SYS_PART|DISK_FLAG_DATA_PART)) {
+      /* Install a filesystem on the system partition and copy files */
       case DISK_FLAG_SYS_PART:
+
+        /*
+         * Install a filesystem on this partition 
+         * TODO: let the user choose it's filesystem
+         */
+        error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
+
+        if (error || !cur_partition->filesystem)
+          return error;
+
         /* 
          * TODO: copy over the needed files for this filesystem 
          * For the system partition, this will be:
@@ -353,7 +355,17 @@ perform_install()
         if (error)
           return error;
         break;
+      /* Install a filesystem on the data partition and copy the files we need */
       case DISK_FLAG_DATA_PART:
+
+        /*
+         * Install a filesystem on this partition 
+         * TODO: let the user choose it's filesystem
+         */
+        error = disk_install_fs(cur_partition, FS_TYPE_FAT32);
+
+        if (error || !cur_partition->filesystem)
+          return error;
         /*
          * TODO: copy over the needed files for this filesystem 
          * For the data partition, that will be:
