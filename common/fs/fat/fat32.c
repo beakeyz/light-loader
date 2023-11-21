@@ -1087,9 +1087,13 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   bpb.fat_num = 1;
   bpb.sectors_num_per_fat = fat_size_sectors;
-  /* ??? */
-  bpb.reserved_sector_count = bpb.sectors_per_cluster;
-  bpb.root_cluster = 2;
+  /*
+   * ???
+   * NOTE: UEFI states that we should make sure that the FAT data section
+   * is aligned to the device sector_size field (in our case)
+   */
+  bpb.reserved_sector_count = ALIGN_UP(bpb.sectors_per_cluster, device->sector_size);
+  bpb.root_cluster = 0;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
   bpb.ext_flags |= (1 << 7);

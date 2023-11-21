@@ -320,6 +320,7 @@ perform_install()
 
   while (cur_partition) {
 
+    /* Check if this is a system partition or a data partition */
     switch (cur_partition->flags & (DISK_FLAG_SYS_PART|DISK_FLAG_DATA_PART)) {
       /* Install a filesystem on the system partition and copy files */
       case DISK_FLAG_SYS_PART:

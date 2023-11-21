@@ -16,8 +16,11 @@ disk_dev_t* bootdevice = nullptr;
 #define DISK_SYSTEM_INDEX 1
 #define DISK_DATA_INDEX 2
 
-#define LLOADER_PART_TYPE_UNUSED_GUID   \
-    { 0x8DA63339, 0x0007, 0x60C0, { 0xC4, 0x36, 0x08, 0x3A, 0xC8, 0x23, 0x09, 0x08 }, }
+#define DISK_BUFFER_SIZE (5ul * Mib)
+
+/* Yoink the linux data partition GUID lmao */
+#define LLOADER_PART_TYPE_BASIC_GUID   \
+    { 0x0FC63DAF, 0x8483, 0x4772, { 0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4 } }
 
 void
 register_bootdevice(disk_dev_t* device)
@@ -306,8 +309,8 @@ disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char*
   memset(entry, 0, sizeof(*entry));
 
   entry->attributes = attrs;
-  entry->starting_lba = ALIGN_DOWN(start_offset, device->effective_sector_size) / device->effective_sector_size;
-  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
+  entry->starting_lba = ALIGN_DOWN(start_offset, device->sector_size) / device->sector_size;
+  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->sector_size) / device->sector_size);
 
   /* Make sure to clamp the end lba */
   //if (entry->ending_lba >= device->total_sectors)
@@ -424,8 +427,11 @@ disk_install_partitions(disk_dev_t* device)
   }
 
   /* Create a buffer partition of 5 Megabytes */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, 5 * Mib, GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_UNUSED_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, DISK_BUFFER_SIZE, GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
+
+  /* Fill the buffer with zeroes */
+  device->f_write_zero(device, DISK_BUFFER_SIZE, previous_entry->starting_lba * device->effective_sector_size);
 
   /* Realistically, the kernel + bootloader should not take more space than this */
   previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", previous_offset, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
@@ -433,8 +439,8 @@ disk_install_partitions(disk_dev_t* device)
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
-  /* Add partition entry for system data (TODO: calculate size dynamically) */
-  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  /* Add partition entry for system data */
+  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   /* Set this partition to be the data partition */
   device->next_partition->flags |= DISK_FLAG_DATA_PART;
 
@@ -465,6 +471,8 @@ disk_install_partitions(disk_dev_t* device)
    * accross platforms. If we don't and we either do a write call right before here to clear lba 0, or
    * we go and install filesystems on the created partitions, the GPT does not get detected anymore. Does this 
    * have to do with some weird bug in the disk IO caching stuff in disk.c? Or some other weird bug? IDK?
+   *
+   * TODO: write a protective MBR on LBA0
    */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
   device->f_write(device, gpt_buffer, 512, header_template->alt_lba);
