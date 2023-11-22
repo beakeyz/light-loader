@@ -15,7 +15,6 @@ static int __fat32_load_cluster(light_fs_t* fs, uint32_t* buffer, uint32_t clust
 
 typedef struct fat_private {
   fat_bpb_t bpb;
-  uint32_t root_directory_sectors;
   uint32_t total_reserved_sectors;
   uint32_t total_usable_sectors;
   uint32_t first_cluster_offset;
@@ -55,8 +54,8 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
 
   memset(private, 0, sizeof(fat_private_t));
 
-  private->root_directory_sectors = (bpb.root_entries_count * 32 + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
-  private->total_reserved_sectors = bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat) + private->root_directory_sectors;
+  //private->root_directory_sectors = (bpb.root_entries_count * 32 + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
+  private->total_reserved_sectors = bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat);
   private->total_usable_sectors = bpb.sector_num_fat32 - private->total_reserved_sectors;
   private->cluster_count = private->total_usable_sectors / bpb.sectors_per_cluster;
   private->cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
@@ -1088,12 +1087,12 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   bpb.fat_num = 1;
   bpb.sectors_num_per_fat = fat_size_sectors;
   /*
-   * ???
-   * NOTE: UEFI states that we should make sure that the FAT data section
-   * is aligned to the device sector_size field (in our case)
+   * ??? 
+   * NOTE: The data section of the FAT filesystem needs to be aligned propperly to disk
+   * so we'll need to compute how many sectors that will be, including the bpb and shit
    */
-  bpb.reserved_sector_count = ALIGN_UP(bpb.sectors_per_cluster, device->sector_size);
-  bpb.root_cluster = 0;
+  bpb.reserved_sector_count = ALIGN_UP(bpb.sectors_per_cluster, device->sector_size/sector_size) - 1;
+  bpb.root_cluster = 2;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
   bpb.ext_flags |= (1 << 7);
@@ -1108,16 +1107,6 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   /* Make bios happy */
   bpb.content[510] = 0x55;
   bpb.content[511] = 0xAA;
-
-  /*
-  private->root_directory_sectors = (bpb.root_entries_count * 32 + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
-  private->total_reserved_sectors = bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat) + private->root_directory_sectors;
-  private->total_usable_sectors = bpb.sector_num_fat32 - private->total_reserved_sectors;
-  private->cluster_count = private->total_usable_sectors / bpb.sectors_per_cluster;
-  private->cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;
-  private->first_cluster_offset = bpb.reserved_sector_count * bpb.bytes_per_sector;
-  private->usable_clusters_start = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat));
-  */
 
   /* TODO: zero FATs */
   uint32_t cluster_size = bpb.sectors_per_cluster * bpb.bytes_per_sector;

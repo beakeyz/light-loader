@@ -309,12 +309,16 @@ disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char*
   memset(entry, 0, sizeof(*entry));
 
   entry->attributes = attrs;
-  entry->starting_lba = ALIGN_DOWN(start_offset, device->sector_size) / device->sector_size;
-  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->sector_size) / device->sector_size);
+  entry->starting_lba = ALIGN_DOWN(start_offset, device->sector_size) / device->effective_sector_size;
+  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->sector_size) / device->effective_sector_size);
 
-  /* Make sure to clamp the end lba */
-  //if (entry->ending_lba >= device->total_sectors)
-    //entry->ending_lba = device->total_sectors - 1;
+  /*
+   * Make sure to clamp the end lba 
+   * NOTE: the last LBA on disk is backup GPT header, so make sure to end this partition
+   * before that
+   */
+  if (entry->ending_lba >= device->total_sectors)
+    entry->ending_lba = device->total_sectors - 2;
 
   entry->partition_type_guid = guid;
 
@@ -351,7 +355,7 @@ gpt_entry_get_size(uint32_t entry_index)
 static inline uintptr_t
 gpt_entry_get_end_offset(disk_dev_t* device, gpt_entry_t* entry)
 {
-  return (entry->ending_lba + 1) * device->effective_sector_size;
+  return ALIGN_UP((entry->ending_lba + 1) * device->effective_sector_size, device->sector_size);
 }
 
 int
@@ -404,7 +408,7 @@ disk_install_partitions(disk_dev_t* device)
   /* Right after the header */
   header_template->partition_entry_lba = 2;
 
-  header_template->first_usable_lba = 2048;
+  header_template->first_usable_lba = ALIGN_UP(2048, device->sector_size);
   //header_template->first_usable_lba = (ALIGN_UP(total_required_size, device->effective_sector_size) / device->effective_sector_size);
 
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
@@ -427,7 +431,7 @@ disk_install_partitions(disk_dev_t* device)
   }
 
   /* Create a buffer partition of 5 Megabytes */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, DISK_BUFFER_SIZE, GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, DISK_BUFFER_SIZE, 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
 
   /* Fill the buffer with zeroes */
@@ -440,7 +444,7 @@ disk_install_partitions(disk_dev_t* device)
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
   /* Add partition entry for system data */
-  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), GPT_ATTR_HIDDEN, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   /* Set this partition to be the data partition */
   device->next_partition->flags |= DISK_FLAG_DATA_PART;
 
@@ -471,8 +475,6 @@ disk_install_partitions(disk_dev_t* device)
    * accross platforms. If we don't and we either do a write call right before here to clear lba 0, or
    * we go and install filesystems on the created partitions, the GPT does not get detected anymore. Does this 
    * have to do with some weird bug in the disk IO caching stuff in disk.c? Or some other weird bug? IDK?
-   *
-   * TODO: write a protective MBR on LBA0
    */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
   device->f_write(device, gpt_buffer, 512, header_template->alt_lba);
