@@ -9,6 +9,7 @@
 #include "file.h"
 #include "fs.h"
 #include "gfx.h"
+#include "guid.h"
 #include "heap.h"
 #include "stddef.h"
 #include "sys/ctx.h"
@@ -356,39 +357,6 @@ init_efi_bootdisk()
   if (!efi_ctx->bootdisk_block_io || !efi_ctx->bootdisk_io)
     return;
 
-  /* Go over every partition */
-  for (uint32_t i = 0; i < ctx->present_volume_count; i++) {
-    current_disk_dev = ctx->present_volume_list[i];
-    efi_disk_stuff = current_disk_dev->private;
-
-    /* Skip physical disks */
-    if ((current_disk_dev->flags & DISK_FLAG_PARTITION) != DISK_FLAG_PARTITION || !efi_disk_stuff)
-      continue;
-
-    error = disk_probe_fs(current_disk_dev);
-
-    printf("Probing for filesystem...");
-
-    if (error)
-      continue;
-
-    printf("Checking for files...");
-    error = check_lightloader_files(current_disk_dev);
-
-    /*
-     * FIXME: since we don't expect to find a shitload of FAT filesystems on a single 
-     * it really does not matter right now that we don't do any cleanup here, but we 
-     * really should...
-     */
-    if (error)
-      continue;
-
-    printf("Registering!");
-    /* If we've reached this point, we can simply register this device and dip */
-    register_bootdevice(current_disk_dev);
-    return;
-  }
-
   /*
    * NOTE: The 'bootdevice' is actually the bootpartition, so don't go trying to look
    * for a partitioning sceme on this 'disk' LMAO
@@ -401,14 +369,91 @@ init_efi_bootdisk()
   /* UEFI Gives us a handle to our partition, not the entire disk lol */
   bootdevice->flags |= DISK_FLAG_PARTITION;
 
-  register_bootdevice(bootdevice);
-
   error = disk_probe_fs(bootdevice);
 
   /* If this fails, we should try a discovery and do a system-wide scan for a partition with the right stuff */
-  if (error) {
-    printf("Could not probe for filesystem on the bootdisk");
-    for (;;) {}
+  if (!error) {
+    register_bootdevice(bootdevice);
+    return;
+  }
+
+  /* Go over every partition */
+  for (uint32_t i = 0; i < ctx->present_volume_count; i++) {
+    current_disk_dev = ctx->present_volume_list[i];
+    efi_disk_stuff = current_disk_dev->private;
+
+    /* Skip physical disks */
+    if (!efi_disk_stuff)
+      continue;
+
+    current_disk_dev = current_disk_dev->next_partition;
+
+    while (current_disk_dev) {
+      error = disk_probe_fs(current_disk_dev);
+
+      printf("Probing for filesystem...");
+
+      if (error)
+        goto cycle;
+
+      printf("Checking for files...");
+      error = check_lightloader_files(current_disk_dev);
+
+      /*
+       * FIXME: since we don't expect to find a shitload of FAT filesystems on a single 
+       * it really does not matter right now that we don't do any cleanup here, but we 
+       * really should...
+       */
+      if (error)
+        goto cycle;
+
+      printf("Registering!");
+      /* If we've reached this point, we can simply register this device and dip */
+      register_bootdevice(current_disk_dev);
+      return;
+cycle:
+      current_disk_dev = current_disk_dev->next_partition;
+    }
+  }
+
+  printf("Could not probe for filesystem on the bootdisk");
+  for (;;) {}
+}
+
+/*!
+ * @brief: Grabs the used partitions from a disk device with GPT
+ */
+static void
+grab_disk_partitions(disk_dev_t* device)
+{
+  gpt_header_t hdr;
+  gpt_entry_t entry;
+  guid_t unused_guid;
+  efi_disk_stuff_t* p_disk;
+
+  if (!device || (device->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
+    return;
+
+  p_disk = device->private;
+
+  if (device->f_read(device, &hdr, sizeof(hdr), device->effective_sector_size))
+    return;
+
+  if (strncmp((const char*)hdr.signature, "EFI PART", 8))
+    return;
+
+  memset(&unused_guid, 0, sizeof(unused_guid));
+
+  for (uint32_t i = 0; i < hdr.partition_entry_num; i++) {
+    /* Try to read this partition entry */
+    if (device->f_read(device, &entry, sizeof(entry), (hdr.partition_entry_lba * device->effective_sector_size) + (i * sizeof(entry))))
+      continue;
+
+    /* Check if the entry is used */
+    if (memcmp(&entry.partition_type_guid, &unused_guid, sizeof(guid_t)))
+      continue;
+
+    create_and_link_partition_dev(device, entry.starting_lba, entry.ending_lba);
   }
 }
 
@@ -456,7 +501,8 @@ efi_discover_present_volumes()
     if (EFI_ERROR(status))
       continue;
 
-    if (!current_protocol->Media->MediaPresent)
+    /* Skip partitions from UEFI */
+    if (!current_protocol->Media->MediaPresent || current_protocol->Media->LogicalPartition)
       continue;
 
     physical_count++;
@@ -478,14 +524,14 @@ efi_discover_present_volumes()
     if (EFI_ERROR(status))
       continue;
 
-    if (!current_protocol->Media->MediaPresent)
+    if (!current_protocol->Media->MediaPresent || current_protocol->Media->LogicalPartition)
       continue;
 
     /* Create disks without a diskio protocol */
     ctx->present_volume_list[physical_count] = create_efi_disk(current_protocol, nullptr);
 
-    if (current_protocol->Media->LogicalPartition)
-      ctx->present_volume_list[physical_count]->flags |= DISK_FLAG_PARTITION;
+    /* Try to cache the partitions on this disk */
+    grab_disk_partitions(ctx->present_volume_list[physical_count]);
 
     physical_count++;
   }

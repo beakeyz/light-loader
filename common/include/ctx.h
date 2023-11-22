@@ -51,7 +51,7 @@ typedef struct light_ctx {
    */
   disk_dev_t* disk_handle;
 
-  /* Array of all the 'disk' drives (or partitions) we found on the system */
+  /* Array of all the 'disk' drives we found on the system */
   disk_dev_t** present_volume_list;
   uint32_t present_volume_count;
   

@@ -18,7 +18,6 @@ typedef struct efi_ctx {
   EFI_DISK_IO_PROTOCOL* bootdisk_io;
   EFI_BLOCK_IO_PROTOCOL* bootdisk_block_io;
   EFI_FILE_PROTOCOL* bootdisk_file;
-
 } efi_ctx_t;
 
 void gather_system_pointers(system_ptrs_t* ptrs);

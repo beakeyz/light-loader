@@ -135,4 +135,6 @@ typedef struct gpt_entry {
   
 }__attribute__((packed)) gpt_entry_t;
 
+disk_dev_t* create_and_link_partition_dev(disk_dev_t* parent, uintptr_t start_lba, uintptr_t ending_lba);
+
 #endif // !__LIGHTLOADER_DISK__
