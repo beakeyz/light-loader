@@ -341,53 +341,6 @@ gfx_printf(char* str, ...)
   return 0;
 }
 
-void
-gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t pos)
-{
-  switch (pos) {
-    case LOGO_POS_CENTER:
-      {
-        x = (gfx->width - 1) >> 1;
-        y = (gfx->height - 1) >> 1;
-
-        x -= (default_logo.width - 1) >> 1;
-        y -= (default_logo.height - 1) >> 1;
-      }
-      break;
-    case LOGO_POS_TOP_BAR_RIGHT:
-      {
-        x = (gfx->width - 1) - default_logo.width - LOGO_SIDE_PADDING;
-        y = LOGO_SIDE_PADDING;
-      }
-      break;
-    case LOGO_POS_BOTTOM_BAR_RIGHT:
-      {
-        x = (gfx->width - 1) - default_logo.width - LOGO_SIDE_PADDING;
-        y = (gfx->height - 1) - default_logo.height - LOGO_SIDE_PADDING;
-      }
-      break;
-    case LOGO_POS_NONE:
-    default:
-      break;
-  }
-
-  for (uint32_t i = 0; i < default_logo.height; i++) {
-    for (uint32_t j = 0; j < default_logo.width; j++) {
-
-      uint8_t r = default_logo.pixel_data[i * default_logo.bytes_per_pixel * 128 + j * default_logo.bytes_per_pixel + 0];
-      uint8_t g = default_logo.pixel_data[i * default_logo.bytes_per_pixel * 128 + j * default_logo.bytes_per_pixel + 1];
-      uint8_t b = default_logo.pixel_data[i * default_logo.bytes_per_pixel * 128+ j * default_logo.bytes_per_pixel + 2];
-
-      gfx_draw_rect(gfx, x + j, y + i, 1, 1, (light_color_t) {
-        .alpha = 0xFF,
-        .red = r,
-        .green = g,
-        .blue = b,
-      });
-    }
-  }
-}
-
 /*
  * GFX screen management
  */

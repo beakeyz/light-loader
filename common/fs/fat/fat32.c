@@ -26,6 +26,13 @@ typedef struct fat_private {
   uint32_t flags;
 } fat_private_t;
 
+/*
+ * This value gets initialized when we mount a valid FAT filesytem 
+ * and should be zero otherwise. It it used when we create a new FAT
+ * filesystem to spoof a valid vol_id
+ */
+static uint32_t cached_vol_id;
+
 int 
 fat32_probe(light_fs_t* fs, disk_dev_t* device)
 {
@@ -80,6 +87,10 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
     .dir_attr = FAT_ATTR_DIRECTORY,
     .dir_name = "/",
   };
+
+  /* Only set this if it has not been done before */
+  if (!cached_vol_id)
+    cached_vol_id = bpb.volume_id;
 
   memcpy(&private->bpb, &bpb, sizeof(fat_bpb_t));
 
@@ -1044,10 +1055,12 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   uint32_t fat_size_sectors;
   uintptr_t current_disksize;
   fat_bpb_t bpb;
+  fat_fsinfo_t fsinfo;
   void* fat;
   fat_dir_entry_t root_entry;
 
   memset(&bpb, 0, sizeof(bpb));
+  memset(&fsinfo, 0, sizeof(fsinfo));
   memset(&root_entry, 0, sizeof(root_entry));
 
   sector_size = 512;
@@ -1074,6 +1087,10 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   if (!bpb.sectors_per_cluster)
     return -1;
 
+  bpb.jmp_boot[0] = 0xEB;
+  bpb.jmp_boot[1] = 0x00;
+  bpb.jmp_boot[2] = 0x90;
+
   bpb.bytes_per_sector = sector_size;
   /* TODO: make sure 2+Tib devices don't fuck us here */
   bpb.sector_num_fat32 = device->total_size / sector_size;
@@ -1091,7 +1108,7 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
    * NOTE: The data section of the FAT filesystem needs to be aligned propperly to disk
    * so we'll need to compute how many sectors that will be, including the bpb and shit
    */
-  bpb.reserved_sector_count = ALIGN_UP(bpb.sectors_per_cluster, device->sector_size/sector_size) - 1;
+  bpb.reserved_sector_count = bpb.sectors_per_cluster;
   bpb.root_cluster = 2;
   /* Disable FAT mirroring and enable the 0th FAT */
   bpb.ext_flags = 0;
@@ -1104,6 +1121,11 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   bpb.fs_version = 0;
   bpb.fs_info_sector = 1;
+
+  bpb.signature = 0x29;
+  bpb.volume_id = cached_vol_id;
+  memcpy(&bpb.volume_label, "NO NAME    ", 11);
+
   /* Make bios happy */
   bpb.content[510] = 0x55;
   bpb.content[511] = 0xAA;
@@ -1117,20 +1139,35 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
     device->f_write_zero(device, fats_size, (bpb.reserved_sector_count * bpb.bytes_per_sector) + (i * fats_size));
 
   /* Mask any fucky bits to comply with FAT32 standards */
-  uint32_t eof_value = FAT32_CLUSTER_EOF & 0x0fffffff;
+  const uint32_t eof_value = FAT32_CLUSTER_EOF & 0x0fffffff;
+
+  /* Define a table for reserved FAT entry values */
+  const uint32_t reserved_fat_values[2] = {
+    0x0fffff00 | bpb.media_type,
+    /* Clean filesystem and no I/O errors (See Microsoft FAT spec) */
+    0x08000000 | 0x04000000,
+  };
+
+  /* Write that shit to disk (NOTE: f_write may not change the const fields above, so the void* cast is fine) */
+  for (uint32_t i = 0; i < 2; i++)
+    /* Write the first reserved FAT entry */
+    device->f_write(device, (void*)&reserved_fat_values[i], sizeof(uint32_t), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (i * sizeof(eof_value)));
 
   /* Make sure the root dir entry does not die lol */
-  device->f_write(device, &eof_value, sizeof(eof_value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(eof_value)));
-
-  /* Reallocate in order to clear the root cluster */
-  uint8_t* zeros = heap_allocate(cluster_size);
-  memset(zeros, 0, cluster_size);
+  device->f_write(device, (void*)&eof_value, sizeof(eof_value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(eof_value)));
 
   /* Make sure there is nothing at cluster 2 */
   uint32_t current_cluster_offset = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat)) * bpb.bytes_per_sector;
-  device->f_write(device, zeros, cluster_size, current_cluster_offset);
+  device->f_write_zero(device, cluster_size, current_cluster_offset);
 
-  heap_free(zeros);
+  /* Correct signatures */
+  fsinfo.lead_signature = FAT_FSINFO_LEAD_SIG;
+  fsinfo.trail_signature = FAT_FSINFO_TRAIL_SIG;
+  fsinfo.structure_signature = FAT_FSINFO_STRUCT_SIG;
+
+  /* Indicate no info on free trackers =) */
+  fsinfo.next_free = 0xFFFFFFFF;
+  fsinfo.free_count = 0xFFFFFFFF;
 
   /*
    * What to do:
@@ -1140,7 +1177,10 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
    * - Create a root directory entry
    */
 
-  /* Write the bpb to the first sector of the device */
+  /* Write fsinfo struct to sector one */
+  device->f_write(device, &fsinfo, sizeof(fsinfo), sector_size);
+
+  /* Then write the bpb to the first sector of the device */
   return device->f_write(device, &bpb, sizeof(bpb), 0);
 }
 
@@ -1157,5 +1197,6 @@ light_fs_t fat32_fs =
 void 
 init_fat_fs()
 {
+  cached_vol_id = NULL;
   register_fs(&fat32_fs);
 }

@@ -24,6 +24,26 @@ static const char* disk_labels[] = {
   "Disk 8",
   "Disk 9",
 };
+
+/*
+ * Static list of paths that we NEED to copy to a new system filesystem when we
+ * install the system
+ */
+static char* system_copy_files[] = {
+  "aniva.elf",
+  "rdisk.igz",
+  "EFI/BOOT/BOOTX64.EFI",
+  "res/bckgrnd.bmp",
+  "res/check.bmp",
+  "res/chkbox.bmp",
+  "res/home.bmp",
+  "res/instl.bmp",
+  "res/lcrsor.bmp",
+  "res/opt.bmp",
+  "res/loader.cfg",
+};
+
+static const uint32_t system_file_count = sizeof(system_copy_files) / sizeof(*system_copy_files);
 static const uint32_t max_disks = sizeof(disk_labels) / sizeof(*disk_labels);
 static button_component_t* current_device;
 
@@ -33,10 +53,10 @@ static button_component_t* current_device;
 #define INSTALL_ERR_NODISK      INSTALL_ERR(1)
 #define INSTALL_ERR_BOOTDEVICE  INSTALL_ERR(2)
 
-static int perform_install();
-
 #define DISK_CHOOSE_LABEL "Which disk do you want to install to?"
 #define INSTALLATION_WARNING_LABEL "WARNING: installation on this disk means that all data on it will be wiped! Are you sure you are okay with that?"
+
+static int perform_install();
 
 static int 
 disk_selector_onclick(button_component_t* component)
@@ -190,21 +210,27 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
 
   current_device = nullptr;
   ctx = get_light_ctx();
-  devices = ctx->present_disk_list;
-  available_device_count = ctx->present_disk_count <= max_disks ? ctx->present_disk_count : max_disks;
+  devices = ctx->present_volume_list;
+  available_device_count = ctx->present_volume_count <= max_disks ? ctx->present_volume_count : max_disks;
 
   create_component(root, COMPONENT_TYPE_LABEL, DISK_CHOOSE_LABEL, 24, 52, lf_get_str_width(gfx->current_font, DISK_CHOOSE_LABEL), 16, nullptr);
 
-  for (uint32_t i = 0; i < ctx->present_disk_count; i++) {
+  for (uint32_t i = 0, current_i = 0; i < ctx->present_volume_count; i++) {
     disk_dev_t* dev = devices[i];
 
-    if (!dev)
+    /*
+     * FIXME: since a disk with only one partition will be marked by firmware as LogicalPartition, we need to 
+     * check the amount of partitions on a disk to see if we are dealing with a device that is marked as a partition, 
+     * but really should not be in this case (We should at least always know about this fact)
+     */
+    if (!dev || (dev->flags & DISK_FLAG_PARTITION) == DISK_FLAG_PARTITION)
       continue;
 
-    current_btn = create_button(root, (char*)disk_labels[i], 24, 72 + (36 * i), 256, 32, disk_selector_onclick, disk_selector_ondraw);
+    current_btn = create_button(root, (char*)disk_labels[current_i], 24, 72 + (36 * current_i), 256, 32, disk_selector_onclick, disk_selector_ondraw);
 
     /* Make sure the button knows which device is represents */
     current_btn->private = (uintptr_t)dev;
+    current_i++;
   }
 
   create_switch(root, "Confirm my installation", 24, gfx->height - 94, (gfx->width >> 1) - 24, gfx->current_font->height * 2, &ctx->install_confirmed);
@@ -335,26 +361,18 @@ perform_install()
           return error;
 
         /* 
-         * TODO: copy over the needed files for this filesystem 
+         * Copy over the needed files for this filesystem 
          * For the system partition, this will be:
          *  - The files on the boot device
          *  - ...
          */
+        for (uint32_t i = 0; i < system_file_count; i++) {
+          error = copy_from_bootdisk(cur_partition, system_copy_files[i]);
 
-        error = copy_from_bootdisk(cur_partition, "aniva.elf");
+          if (error)
+            return error;
+        }
 
-        if (error)
-          return error;
-
-        error = copy_from_bootdisk(cur_partition, "rdisk.igz");
-
-        if (error)
-          return error;
-
-        error = copy_from_bootdisk(cur_partition, "EFI/BOOT/BOOTX64.EFI");
-
-        if (error)
-          return error;
         break;
       /* Install a filesystem on the data partition and copy the files we need */
       case DISK_FLAG_DATA_PART:

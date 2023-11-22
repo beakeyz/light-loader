@@ -141,12 +141,12 @@ efi_setup_ctx(light_ctx_t* ctx)
  * What are the steps from here?
  * 1) [X] First: initialize a system heap
  * 2) [X] Initialize a framebuffer so we can have pixels
- * 3) [ ] Initialize the frontend so we can have pretty pixels
- * 4) [ ] Check for a keyboard and mouse
- * 5) [ ] Check and cache any system objects like ACPI pointers or SMBIOS stuff
- * 6) [ ] Initialize file access n stuff
- * 7) [ ] Let the user do stuff
- * 8) [ ] Boot the kernel =D
+ * 3) [X] Initialize the frontend so we can have pretty pixels
+ * 4) [X] Check for a keyboard and mouse
+ * 5) [X] Check and cache any system objects like ACPI pointers or SMBIOS stuff
+ * 6) [X] Initialize file access n stuff
+ * 7) [X] Let the user do stuff
+ * 8) [X] Boot the kernel =D
  */
 EFI_STATUS
 efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
@@ -196,14 +196,14 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   /* Initialize the filesystems */
   init_fs();
 
-  /* Create the efi bootdisk, aka the 'partition' that we where booted from and where the kernel files should be aswell */
-  init_efi_bootdisk();
-
   /* Grab some system information */
   get_light_ctx()->f_gather_sys_info();
 
   /* Find some more info about the physical drives */
-  efi_discover_present_diskdrives();
+  efi_discover_present_volumes();
+
+  /* Create the efi bootdisk, aka the 'partition' that we where booted from and where the kernel files should be aswell */
+  init_efi_bootdisk();
 
   /* Enter the frontend for user interaction */
   result = gfx_enter_frontend();

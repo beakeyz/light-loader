@@ -18,6 +18,8 @@
 
 struct light_mmap_entry;
 
+#define CTX_INSTALL_CHECK_PATH "res/install.yes"
+
 typedef struct light_ctx {
 
   /* The start and end address of the loader in RAM */
@@ -49,9 +51,9 @@ typedef struct light_ctx {
    */
   disk_dev_t* disk_handle;
 
-  /* Array of all the (physical) disk drives we found on the system */
-  disk_dev_t** present_disk_list;
-  uint32_t present_disk_count;
+  /* Array of all the 'disk' drives (or partitions) we found on the system */
+  disk_dev_t** present_volume_list;
+  uint32_t present_volume_count;
   
   /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
   int (*f_fw_exit)();
@@ -78,6 +80,8 @@ typedef struct light_ctx {
 
 void init_light_ctx(void (*platform_setup)(light_ctx_t* p_ctx));
 light_ctx_t* get_light_ctx();
+
+bool light_is_installed();
 
 extern light_ctx_t g_light_ctx;
 #endif // !__LIGHLOADER_CTX__

@@ -57,6 +57,25 @@ typedef struct {
   };
 } __attribute__((packed)) fat_bpb_t;
 
+#define FAT_FSINFO_LEAD_SIG     0x41615252
+#define FAT_FSINFO_STRUCT_SIG   0x61417272
+#define FAT_FSINFO_TRAIL_SIG    0xAA550000
+
+typedef struct {
+  union {
+    struct {
+      uint32_t lead_signature;
+      uint8_t reserved[480];
+      uint32_t structure_signature;
+      uint32_t free_count;
+      uint32_t next_free;
+      uint8_t reserved1[12];
+      uint32_t trail_signature;
+    };
+    uint8_t raw[FAT_SECTOR_SIZE];
+  };
+} __attribute__((packed)) fat_fsinfo_t;
+
 typedef struct {
   uint8_t dir_name[11];
   uint8_t dir_attr;

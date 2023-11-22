@@ -294,6 +294,45 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   return ret;
 }
 
+/*!
+ * @brief: Check if a device contains a filesystem we know and files we expect for the bootloader
+ *
+ * TODO: make these paths centralised (For if we want to support multiple configurations)
+ */
+static inline int
+check_lightloader_files(disk_dev_t* device)
+{
+  light_file_t* current_file;
+
+  if (!device || !device->filesystem || !device->filesystem->f_open)
+    return -1;
+
+  /* First, check if the device has an X86_64 generic application (Our bootloader perchance) */
+  current_file = device->filesystem->f_open(device->filesystem, "EFI/BOOT/BOOTX64.EFI");
+
+  if (!current_file)
+    return -2;
+
+  current_file->f_close(current_file);
+
+  /* Check for the kernel */
+  current_file = device->filesystem->f_open(device->filesystem, "aniva.elf");
+
+  if (!current_file)
+    return -3;
+
+  current_file->f_close(current_file);
+
+  /* Check for a resources directory and a background image */
+  current_file = device->filesystem->f_open(device->filesystem, "res/bckgrnd.bmp");
+
+  if (!current_file)
+    return -4;
+
+  current_file->f_close(current_file);
+  return 0;
+}
+
 #define MAX_PARTITION_COUNT 64
 
 /*!
@@ -308,11 +347,47 @@ init_efi_bootdisk()
   light_ctx_t* ctx;
   efi_ctx_t* efi_ctx;
 
+  disk_dev_t* current_disk_dev;
+  efi_disk_stuff_t* efi_disk_stuff;
+
   ctx = get_light_ctx();
   efi_ctx = get_efi_context();
 
   if (!efi_ctx->bootdisk_block_io || !efi_ctx->bootdisk_io)
     return;
+
+  /* Go over every partition */
+  for (uint32_t i = 0; i < ctx->present_volume_count; i++) {
+    current_disk_dev = ctx->present_volume_list[i];
+    efi_disk_stuff = current_disk_dev->private;
+
+    /* Skip physical disks */
+    if ((current_disk_dev->flags & DISK_FLAG_PARTITION) != DISK_FLAG_PARTITION || !efi_disk_stuff)
+      continue;
+
+    error = disk_probe_fs(current_disk_dev);
+
+    printf("Probing for filesystem...");
+
+    if (error)
+      continue;
+
+    printf("Checking for files...");
+    error = check_lightloader_files(current_disk_dev);
+
+    /*
+     * FIXME: since we don't expect to find a shitload of FAT filesystems on a single 
+     * it really does not matter right now that we don't do any cleanup here, but we 
+     * really should...
+     */
+    if (error)
+      continue;
+
+    printf("Registering!");
+    /* If we've reached this point, we can simply register this device and dip */
+    register_bootdevice(current_disk_dev);
+    return;
+  }
 
   /*
    * NOTE: The 'bootdevice' is actually the bootpartition, so don't go trying to look
@@ -329,10 +404,16 @@ init_efi_bootdisk()
   register_bootdevice(bootdevice);
 
   error = disk_probe_fs(bootdevice);
+
+  /* If this fails, we should try a discovery and do a system-wide scan for a partition with the right stuff */
+  if (error) {
+    printf("Could not probe for filesystem on the bootdisk");
+    for (;;) {}
+  }
 }
 
 /*!
- * @brief: Tries to find all the present physical disk drives on the system through EFI
+ * @brief: Tries to find all the present volumes on the system through EFI
  *
  * This allocates an array of disk_dev_t pointers and puts those in the global light_ctx structure
  * To find the devices, we'll loop through all the handles we find that support the BLOCK_IO protocol
@@ -341,7 +422,7 @@ init_efi_bootdisk()
  * This gets called right before we enter the GFX frontend
  */
 void 
-efi_discover_present_diskdrives()
+efi_discover_present_volumes()
 {
   light_ctx_t* ctx;
   uint32_t physical_count;
@@ -354,8 +435,8 @@ efi_discover_present_diskdrives()
 
   ctx = get_light_ctx();
 
-  ctx->present_disk_list = nullptr;
-  ctx->present_disk_count = 0;
+  ctx->present_volume_list = nullptr;
+  ctx->present_volume_count = 0;
 
   /* Grab the handles that support BLOCK_IO */
   handle_count = locate_handle_with_buffer(ByProtocol, block_io_guid, &buffer_size, &handles);
@@ -375,15 +456,15 @@ efi_discover_present_diskdrives()
     if (EFI_ERROR(status))
       continue;
 
-    if (!current_protocol->Media->MediaPresent || current_protocol->Media->LogicalPartition)
+    if (!current_protocol->Media->MediaPresent)
       continue;
 
     physical_count++;
   }
 
   /* Allocate the array */
-  ctx->present_disk_count = physical_count;
-  ctx->present_disk_list = heap_allocate(sizeof(disk_dev_t*) * physical_count);
+  ctx->present_volume_count = physical_count;
+  ctx->present_volume_list = heap_allocate(sizeof(disk_dev_t*) * physical_count);
 
   /* Reuse this variable as an index */
   physical_count = 0;
@@ -397,12 +478,17 @@ efi_discover_present_diskdrives()
     if (EFI_ERROR(status))
       continue;
 
-    if (!current_protocol->Media->MediaPresent || current_protocol->Media->LogicalPartition)
+    if (!current_protocol->Media->MediaPresent)
       continue;
 
     /* Create disks without a diskio protocol */
-    ctx->present_disk_list[physical_count++] = create_efi_disk(current_protocol, nullptr);
+    ctx->present_volume_list[physical_count] = create_efi_disk(current_protocol, nullptr);
 
-    /* TODO: register partitions */
+    if (current_protocol->Media->LogicalPartition)
+      ctx->present_volume_list[physical_count]->flags |= DISK_FLAG_PARTITION;
+
+    physical_count++;
   }
+
+  heap_free(handles);
 }
