@@ -23,7 +23,7 @@ typedef struct heap_node {
 #define HEAP_NODE_FLAG_USED 0x0001
 // #define HEAP_NODE_FLAG_
 
-#define INITIAL_HEAP_LIMIT 86 * Mib 
+#define INITIAL_HEAP_LIMIT 128 * Mib 
 
 static heap_node_t*
 node_from_address(uint64_t address)

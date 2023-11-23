@@ -16,6 +16,7 @@
 #include <efilib.h>
 #include <memory.h>
 #include <file.h>
+#include <stdio.h>
 
 #define INITIAL_HEAPSIZE 128 * Mib
 
@@ -123,8 +124,8 @@ efi_setup_ctx(light_ctx_t* ctx)
 
   status = open_protocol(IH, &img_guid, (void**)&efi_ctx->lightloader_image);
 
-  status = BS->HandleProtocol(efi_ctx->lightloader_image->DeviceHandle, &io_guid, (void**)&efi_ctx->bootdisk_io);
   status = BS->HandleProtocol(efi_ctx->lightloader_image->DeviceHandle, &block_guid, (void**)&efi_ctx->bootdisk_block_io);
+  status = BS->HandleProtocol(efi_ctx->lightloader_image->DeviceHandle, &io_guid, (void**)&efi_ctx->bootdisk_io);
 
   ctx->private = efi_ctx;
 }
