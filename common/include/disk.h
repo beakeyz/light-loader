@@ -16,6 +16,9 @@ struct gpt_header;
 #define DISK_FLAG_DATA_PART     0x00000010
 #define DISK_FLAG_SYS_PART      0x00000020
 
+/* Should always be directly to disk and not to our local cache first? */
+#define DISK_FLAG_CACHE_WRITES  0x00000040
+
 typedef struct disk_dev {
 
   uintptr_t first_sector;
@@ -62,6 +65,21 @@ typedef struct disk_dev {
   int (*f_bwrite)(struct disk_dev* dev, void* buffer, size_t count, uintptr_t lba);
   int (*f_flush)(struct disk_dev* dev);
 } disk_dev_t;
+
+static inline void disk_enable_cache_writes(disk_dev_t* dev)
+{
+  dev->flags |= DISK_FLAG_CACHE_WRITES;
+}
+
+static inline void disk_disable_cache_writes(disk_dev_t* dev)
+{
+  dev->flags &= ~DISK_FLAG_CACHE_WRITES;
+}
+
+static inline bool disk_is_cache_writes(disk_dev_t* dev)
+{
+  return (dev->flags & DISK_FLAG_CACHE_WRITES) == DISK_FLAG_CACHE_WRITES;
+}
 
 void register_bootdevice(disk_dev_t* device);
 void register_partition(disk_dev_t* device);

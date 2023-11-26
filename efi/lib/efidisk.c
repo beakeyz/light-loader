@@ -124,6 +124,7 @@ __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
     /* Copy from our buffer into the cache */
     memcpy(&(dev->cache.cache_ptr[current_cache_idx])[current_delta], buffer + current_offset, read_size);
 
+    /* Write to disk yay */
     error = dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block);
 
     /* Try to write this fucker to disk lol */
@@ -262,9 +263,6 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   efi_private->blockio = blockio;
   efi_private->media = media;
 
-  /* Make sure we aren't caching writes lmao */
-  media->WriteCaching = false;
-
   ret->private = efi_private;
 
   ret->total_size = media->LastBlock * media->BlockSize;
@@ -282,6 +280,19 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   
   if (media->RemovableMedia)
     ret->flags |= DISK_FLAG_REMOVABLE;
+
+  /*
+   * Cache writes by default to increase speed 
+   * This means that writes only go directly to disk once we 
+   * swap blocks inside a cache entry, or when we manually flush
+   * this disk (with calling disk_flush(...))
+   *
+   * TODO: Fix
+   */
+  disk_disable_cache_writes(ret);
+
+  /* Make sure we aren't caching writes on EFI side lmao */
+  media->WriteCaching = false;
 
   ret->f_read = __read;
   ret->f_write = __write;

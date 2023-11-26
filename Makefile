@@ -69,6 +69,9 @@ KERNEL_ELF_NAME=aniva.elf
 KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 KERNEL_INTERNAL_RAMDISK_NAME=rdisk.igz
 
+# Path to the lighthouse-os project folder
+LIGHTOS_FULLPATH=/home/beakeyz/Source/c/lighthouse-os
+
 SOURCE_DIRECTORIES := common efi
 INCLUDE_DIRECTORIES := common/include efi/include
 
@@ -147,35 +150,51 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 
 INSTALL_DEV ?= none
 
+# End mark on the device where the LightOS system partition ends
+LIGHTOS_SYSTEM_PART_END=2G
+
 .PHONY: install
 install: ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device>)
 ifeq ($(INSTALL_DEV),none)
 	@echo Please specify INSTALL_DEV=?
 else
 	@stat $(INSTALL_DEV)
+	@echo Making partition table...
 	sudo parted $(INSTALL_DEV) mklabel gpt
-	sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
+	#sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
+	#sudo parted $(INSTALL_DEV) set 1 hidden on
+	sudo parted $(INSTALL_DEV) mkpart LightOS_System 10M $(LIGHTOS_SYSTEM_PART_END)
+	sudo parted $(INSTALL_DEV) set 1 boot on
 	sudo parted $(INSTALL_DEV) set 1 hidden on
-	sudo parted $(INSTALL_DEV) mkpart Primary 10M 100%
-	sudo parted $(INSTALL_DEV) set 2 boot on
-	sudo parted $(INSTALL_DEV) set 2 hidden on
-	sudo parted $(INSTALL_DEV) set 2 esp on
+	sudo parted $(INSTALL_DEV) set 1 esp on
+	sudo parted $(INSTALL_DEV) mkpart LightOS_Data $(LIGHTOS_SYSTEM_PART_END) 100%
+	sudo parted $(INSTALL_DEV) set 2 hidden off
+	sudo parted $(INSTALL_DEV) set 2 boot off
+	sudo parted $(INSTALL_DEV) set 2 esp off
 	sudo partprobe $(INSTALL_DEV)
+	@echo Making System filesystem
+	sudo mkfs.fat -F 32 $(INSTALL_DEV)1
+	@echo Making Data filesystem
 	sudo mkfs.fat -F 32 $(INSTALL_DEV)2
 	mkdir -p $(BOOTRT_DIR)
 
-	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
+	@echo Mounting LightOS System partition
+	sudo mount $(INSTALL_DEV)1 $(BOOTRT_DIR)
 
-	sudo mkdir -p $(BOOTRT_DIR)/efi/boot
-	sudo mkdir -p $(BOOTRT_DIR)/System
-	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/efi/boot/bootx64.efi
+	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
+	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
-	sync
+
+	sudo umount $(BOOTRT_DIR)
+
+	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
+	sudo cp -r $(LIGHTOS_FULLPATH)/system/* $(BOOTRT_DIR)
 
 	sudo umount $(BOOTRT_DIR)
 	rm -rf $(BOOTRT_DIR)
+	sync
 endif
 
 .PHONY: clean

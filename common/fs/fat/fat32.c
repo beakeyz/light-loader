@@ -61,7 +61,6 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
 
   memset(private, 0, sizeof(fat_private_t));
 
-  //private->root_directory_sectors = (bpb.root_entries_count * 32 + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
   private->total_reserved_sectors = bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat);
   private->total_usable_sectors = bpb.sector_num_fat32 - private->total_reserved_sectors;
   private->cluster_count = private->total_usable_sectors / bpb.sectors_per_cluster;
@@ -85,7 +84,7 @@ fat32_probe(light_fs_t* fs, disk_dev_t* device)
     .dir_frst_cluster_lo = bpb.root_cluster & 0xFFFF,
     .dir_frst_cluster_hi = (bpb.root_cluster >> 16) & 0xFFFF,
     .dir_attr = FAT_ATTR_DIRECTORY,
-    .dir_name = "/",
+    .dir_name = "/          ",
   };
 
   /* Only set this if it has not been done before */
@@ -370,20 +369,31 @@ __fat32_dir_append_entry(light_fs_t* fs, fat_dir_entry_t* dir, fat_dir_entry_t* 
     new_cluster_buffer[0].filesize_bytes = 0;
     new_cluster_buffer[0].dir_frst_cluster_lo = first_cluster & 0xffff;
     new_cluster_buffer[0].dir_frst_cluster_hi = (first_cluster >> 16) & 0xffff;
-
+ 
     /* Set the previous dir entry */
     new_cluster_buffer[1].dir_attr = FAT_ATTR_DIRECTORY;
     memset(&new_cluster_buffer[1].dir_name, ' ', 11);
     new_cluster_buffer[1].dir_name[0] = '.';
     new_cluster_buffer[1].dir_name[1] = '.';
     new_cluster_buffer[1].filesize_bytes = 0;
-    new_cluster_buffer[1].dir_frst_cluster_lo = dir->dir_frst_cluster_lo;
-    new_cluster_buffer[1].dir_frst_cluster_hi = dir->dir_frst_cluster_hi;
-    entry->filesize_bytes = 0;
-  } else {
-    /* Set the filesize for a generic file */
-    entry->filesize_bytes = 0;
+
+    /* Only set the cluster numbers if the parent dir is not the root */
+    if (dir->dir_name[0] != '/') {
+      new_cluster_buffer[1].dir_frst_cluster_lo = dir->dir_frst_cluster_lo;
+      new_cluster_buffer[1].dir_frst_cluster_hi = dir->dir_frst_cluster_hi;
+    }
+
+    new_cluster_buffer[1].dir_crt_date = dir->dir_crt_date;
+    new_cluster_buffer[1].dir_wrt_date = dir->dir_wrt_date;
+    new_cluster_buffer[1].dir_crt_time = dir->dir_crt_time;
+    new_cluster_buffer[1].dir_wrt_time = dir->dir_wrt_time;
+    new_cluster_buffer[1].dir_last_acc_date = dir->dir_last_acc_date;
+    new_cluster_buffer[1].dir_crt_time_tenth = dir->dir_crt_time_tenth;
+    new_cluster_buffer[1].dir_ntres = dir->dir_ntres;
   }
+
+  /* Set the filesize for a generic file */
+  entry->filesize_bytes = 0;
 
   /* Write our initial data into this cluster */
   error = __fat32_write_cluster(fs, first_data_buffer, first_cluster);
@@ -657,6 +667,9 @@ fail_dealloc_cchain:
   return error;
 }
 
+/*!
+ * @brief: Write to a file in a FAT filesystem
+ */
 static int
 __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t offset)
 {
@@ -1155,6 +1168,9 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   /* Make sure the root dir entry does not die lol */
   device->f_write(device, (void*)&eof_value, sizeof(eof_value), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (bpb.root_cluster * sizeof(eof_value)));
+
+  /* Clear the rest of the FAT */
+  device->f_write_zero(device, (cluster_count - 3) * sizeof(uint32_t), (bpb.reserved_sector_count * bpb.bytes_per_sector) + (3 * sizeof(uint32_t)));
 
   /* Make sure there is nothing at cluster 2 */
   uint32_t current_cluster_offset = (bpb.reserved_sector_count + (bpb.fat_num * bpb.sectors_num_per_fat)) * bpb.bytes_per_sector;

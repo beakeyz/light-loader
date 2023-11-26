@@ -401,7 +401,9 @@ perform_install()
   }
 
   this->flags |= DISK_FLAG_DID_INSTALL;
-  this->f_flush(this);
+
+  /* Flush our caches to disk */
+  disk_flush(this);
   return 0;
   /*
    * TODO: install =)
