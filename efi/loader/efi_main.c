@@ -207,8 +207,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
   init_efi_bootdisk();
 
   /* Enter the frontend for user interaction */
-  result = gfx_enter_frontend();
-  //result = BOOT_MULTIBOOT;
+  //result = gfx_enter_frontend();
+  result = BOOT_MULTIBOOT;
 
   /* TODO */
   switch (result) {

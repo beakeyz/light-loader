@@ -72,6 +72,9 @@ KERNEL_INTERNAL_RAMDISK_NAME=rdisk.igz
 # Path to the lighthouse-os project folder
 LIGHTOS_FULLPATH=/home/beakeyz/Source/c/lighthouse-os
 
+LIGHTOS_KERNEL_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_ELF_NAME)
+LIGHTOS_RAMDISK_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_RAMDISK_NAME)
+
 SOURCE_DIRECTORIES := common efi
 INCLUDE_DIRECTORIES := common/include efi/include
 
@@ -100,6 +103,9 @@ $(OUT)/%.o: %.asm
 	@$(DIRECTORY_GUARD)
 	@$(ASM_COMP) $< -o $@ -f elf64
 
+check_lightos_fullpath: ## Check if the supplied path for the lighthouse-os project is valid
+	@stat $(LIGHTOS_FULLPATH)
+
 .PHONY: all
 all: build image debug
 
@@ -116,13 +122,13 @@ $(BIN_OUT)/$(OUT_IMAGE):
 	dd if=/dev/zero of=$@ iflag=fullblock bs=1M count=64 && sync
 
 .PHONY: image
-image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
+image: check_lightos_fullpath $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo rm -rf $(BOOTRT_DIR)/
 	sudo rm -rf loopback_dev
 	# Make mounting directory
 	mkdir -p $(BOOTRT_DIR)/
 	# Mount to loop device and save dev name
-	sudo losetup -Pf --show $< > loopback_dev
+	sudo losetup -Pf --show $(BIN_OUT)/$(OUT_IMAGE) > loopback_dev
 	sudo parted `cat loopback_dev` mklabel gpt
 	sudo parted `cat loopback_dev` mkpart primary 2048s 100%
 	sudo parted `cat loopback_dev` set 1 boot on
@@ -139,8 +145,8 @@ image: $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to debug the bootloader
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo mkdir -p $(BOOTRT_DIR)/System
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
-	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
-	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
+	sudo cp $(LIGHTOS_KERNEL_PATH) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
+	sudo cp $(LIGHTOS_RAMDISK_PATH) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 	sync
 	# Cleanup
@@ -154,7 +160,7 @@ INSTALL_DEV ?= none
 LIGHTOS_SYSTEM_PART_END=2G
 
 .PHONY: install
-install: ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device>)
+install: check_lightos_fullpath ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device>)
 ifeq ($(INSTALL_DEV),none)
 	@echo Please specify INSTALL_DEV=?
 else
@@ -183,8 +189,8 @@ else
 
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
-	sudo cp $(KERNEL_ELF_NAME) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
-	sudo cp $(KERNEL_RAMDISK_NAME) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
+	sudo cp $(LIGHTOS_KERNEL_PATH) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
+	sudo cp $(LIGHTOS_RAMDISK_PATH) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
 
 	sudo umount $(BOOTRT_DIR)
