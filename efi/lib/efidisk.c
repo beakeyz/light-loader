@@ -124,7 +124,7 @@ __write(struct disk_dev* dev, void* buffer, size_t size, uintptr_t offset)
     /* Copy from our buffer into the cache */
     memcpy(&(dev->cache.cache_ptr[current_cache_idx])[current_delta], buffer + current_offset, read_size);
 
-    /* Write to disk yay */
+    /* Write to disk Yay */
     error = dev->f_bwrite(dev, (dev->cache.cache_ptr[current_cache_idx]), 1, current_block);
 
     /* Try to write this fucker to disk lol */

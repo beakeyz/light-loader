@@ -12,9 +12,8 @@
 
 disk_dev_t* bootdevice = nullptr;
 
-#define DISK_BUFFER_INDEX 0
-#define DISK_SYSTEM_INDEX 1
-#define DISK_DATA_INDEX 2
+#define DISK_SYSTEM_INDEX 0
+#define DISK_DATA_INDEX 1
 
 #define DISK_BUFFER_SIZE (5ul * Mib)
 
@@ -433,15 +432,8 @@ disk_install_partitions(disk_dev_t* device)
   for (uint32_t i = 0; i < partition_count; i++)
     memset(&entry_start[i], 0, sizeof(gpt_entry_t));
 
-  /* Create a buffer partition of 5 Megabytes */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightOS Buffer", header_template->first_usable_lba * device->effective_sector_size, DISK_BUFFER_SIZE, 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
-  previous_offset = gpt_entry_get_end_offset(device, previous_entry);
-
-  /* Fill the buffer with zeroes */
-  device->f_write_zero(device, DISK_BUFFER_SIZE, previous_offset);
-
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", previous_offset, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;

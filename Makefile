@@ -18,6 +18,8 @@ $(eval $(call DEFAULT_VAR,ASM_COMP,nasm))
 # efi, bios, ect.
 FW_TYPE ?= efi
 SSE_ENABLED := true
+SEPERATE_PARTITIONS := false
+FORCE_RAMDISK ?= false
 
 EMU := qemu-system-x86_64
 
@@ -104,7 +106,8 @@ $(OUT)/%.o: %.asm
 	@$(ASM_COMP) $< -o $@ -f elf64
 
 check_lightos_fullpath: ## Check if the supplied path for the lighthouse-os project is valid
-	@stat $(LIGHTOS_FULLPATH)
+	@stat $(LIGHTOS_KERNEL_PATH)
+	@stat $(LIGHTOS_RAMDISK_PATH)
 
 .PHONY: all
 all: build image debug
@@ -148,6 +151,11 @@ image: check_lightos_fullpath $(BIN_OUT)/$(OUT_IMAGE) ## Create a diskimage to d
 	sudo cp $(LIGHTOS_KERNEL_PATH) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
 	sudo cp $(LIGHTOS_RAMDISK_PATH) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
 	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
+
+ifeq ($(FORCE_RAMDISK), false)
+	sudo cp -r $(LIGHTOS_FULLPATH)/system/* $(BOOTRT_DIR)
+endif
+
 	sync
 	# Cleanup
 	sudo umount $(BOOTRT_DIR)/
@@ -159,11 +167,37 @@ INSTALL_DEV ?= none
 # End mark on the device where the LightOS system partition ends
 LIGHTOS_SYSTEM_PART_END=2G
 
-.PHONY: install
-install: check_lightos_fullpath ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device>)
-ifeq ($(INSTALL_DEV),none)
-	@echo Please specify INSTALL_DEV=?
-else
+install_packed:
+	@stat $(INSTALL_DEV)
+	@echo Making partition table...
+	sudo parted $(INSTALL_DEV) mklabel gpt
+	#sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
+	#sudo parted $(INSTALL_DEV) set 1 hidden on
+	sudo parted $(INSTALL_DEV) mkpart LightOS_System 10M 100% 
+	sudo parted $(INSTALL_DEV) set 1 boot on
+	sudo parted $(INSTALL_DEV) set 1 hidden on
+	sudo parted $(INSTALL_DEV) set 1 esp on
+	sudo partprobe $(INSTALL_DEV)
+	@echo Making System filesystem
+	sudo mkfs.fat -F 32 $(INSTALL_DEV)1
+	mkdir -p $(BOOTRT_DIR)
+
+	@echo Mounting LightOS System partition
+	sudo mount $(INSTALL_DEV)1 $(BOOTRT_DIR)
+
+	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
+	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(LIGHTOS_KERNEL_PATH) $(BOOTRT_DIR)/$(KERNEL_ELF_NAME)
+	sudo cp $(LIGHTOS_RAMDISK_PATH) $(BOOTRT_DIR)/$(KERNEL_INTERNAL_RAMDISK_NAME)
+	sudo cp -r $(RESOURCE_DIR) $(BOOTRT_DIR)
+
+	sudo cp -r $(LIGHTOS_FULLPATH)/system/* $(BOOTRT_DIR)
+
+	sudo umount $(BOOTRT_DIR)
+	rm -rf $(BOOTRT_DIR)
+	sync
+
+install_seperated:
 	@stat $(INSTALL_DEV)
 	@echo Making partition table...
 	sudo parted $(INSTALL_DEV) mklabel gpt
@@ -201,6 +235,18 @@ else
 	sudo umount $(BOOTRT_DIR)
 	rm -rf $(BOOTRT_DIR)
 	sync
+
+
+.PHONY: install
+install: check_lightos_fullpath ## Install the bootloader onto a blockdevice (parameter INSTALL_DEV=<device_path>)
+ifeq ($(INSTALL_DEV),none)
+	@echo Please specify INSTALL_DEV=?
+else
+ifeq ($(SEPERATE_PARTITIONS),true)
+	make install_seperated
+else
+	make install_packed
+endif
 endif
 
 .PHONY: clean

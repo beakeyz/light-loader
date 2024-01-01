@@ -56,7 +56,7 @@ int test_onclick(button_component_t* comp)
   else
     comp->parent->label = "Fuck you lmao";
 
-  char* test_str = "This is a test, yay";
+  char* test_str = "This is a test, Yay";
 
   /* Write into the file */
   error = fwrite(file, test_str, 20, 0);
@@ -64,7 +64,7 @@ int test_onclick(button_component_t* comp)
   if (error)
     comp->parent->label = "Could not write =/";
   else
-    comp->parent->label = "yay";
+    comp->parent->label = "Yay";
 
   return 0;
 }

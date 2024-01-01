@@ -466,7 +466,10 @@ __fat32_cache_cluster_chain(light_fs_t* fs, light_file_t* file, uint32_t start_c
     if (error)
       return error;
 
-    if (buffer < 0x2 || buffer >= FAT32_CLUSTER_LIMIT)
+    if (buffer < 0x2)
+      break;
+
+    if (buffer >= FAT32_CLUSTER_LIMIT)
       break;
 
     length++;
@@ -702,7 +705,7 @@ __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t
   did_overflow = false;
 
   /* Calculate how many clusters we might need to allocate extra */
-  overflow_clusters = overflow_delta / f_priv->cluster_size;
+  overflow_clusters = ALIGN_UP(overflow_delta, f_priv->cluster_size) / f_priv->cluster_size;
   /* Calculate in how many clusters we need to write */
   write_clusters = ALIGN_UP(size, f_priv->cluster_size) / f_priv->cluster_size;
   /* Calculate the first cluster where we need to write */
@@ -980,7 +983,7 @@ fat32_create_path(light_fs_t* fs, const char* path)
     /* Keep opening shit until we fail lmao */
     error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx], NULL);
 
-    /* yay, this one does not exist! */
+    /* Yay, this one does not exist! */
     if (error) {
 
       /* We're in a directory right now, so let's just copy the attributes of our bby */
@@ -1127,17 +1130,17 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
   bpb.ext_flags = 0;
   bpb.ext_flags |= (1 << 7);
 
-  if ((device->flags & DISK_FLAG_REMOVABLE) == DISK_FLAG_REMOVABLE)
-    bpb.media_type = 0xF0;
-  else 
-    bpb.media_type = 0xF8;
+  //if ((device->flags & DISK_FLAG_REMOVABLE) == DISK_FLAG_REMOVABLE)
+    //bpb.media_type = 0xF0;
+  //else 
+  bpb.media_type = 0xF8;
 
   bpb.fs_version = 0;
   bpb.fs_info_sector = 1;
 
   bpb.signature = 0x29;
   bpb.volume_id = cached_vol_id;
-  memcpy(&bpb.volume_label, "NO NAME    ", 11);
+  memcpy(&bpb.volume_label, "mkfs.fat   ", 11);
 
   /* Make bios happy */
   bpb.content[510] = 0x55;

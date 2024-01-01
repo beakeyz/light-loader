@@ -33,14 +33,14 @@ static char* system_copy_files[] = {
   "aniva.elf",
   "rdisk.igz",
   "EFI/BOOT/BOOTX64.EFI",
-  //"res/bckgrnd.bmp",
-  //"res/check.bmp",
-  //"res/chkbox.bmp",
-  //"res/home.bmp",
-  //"res/instl.bmp",
-  //"res/lcrsor.bmp",
-  //"res/opt.bmp",
-  //"res/loader.cfg",
+  "res/bckgrnd.bmp",
+  "res/check.bmp",
+  "res/chkbox.bmp",
+  "res/home.bmp",
+  "res/instl.bmp",
+  "res/lcrsor.bmp",
+  "res/opt.bmp",
+  "res/loader.cfg",
 };
 
 static const uint32_t system_file_count = sizeof(system_copy_files) / sizeof(*system_copy_files);
