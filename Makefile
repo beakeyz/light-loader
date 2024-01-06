@@ -18,7 +18,7 @@ $(eval $(call DEFAULT_VAR,ASM_COMP,nasm))
 # efi, bios, ect.
 FW_TYPE ?= efi
 SSE_ENABLED := true
-SEPERATE_PARTITIONS := false
+SEPERATE_PARTITIONS := true
 FORCE_RAMDISK ?= false
 
 EMU := qemu-system-x86_64
@@ -72,7 +72,7 @@ KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 KERNEL_INTERNAL_RAMDISK_NAME=rdisk.igz
 
 # Path to the lighthouse-os project folder
-LIGHTOS_FULLPATH=/home/beakeyz/Source/c/lighthouse-os
+LIGHTOS_FULLPATH=/home/joost/src/c/lighthouse-os
 
 LIGHTOS_KERNEL_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_ELF_NAME)
 LIGHTOS_RAMDISK_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_RAMDISK_NAME)
@@ -201,25 +201,25 @@ install_seperated:
 	@stat $(INSTALL_DEV)
 	@echo Making partition table...
 	sudo parted $(INSTALL_DEV) mklabel gpt
-	#sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
-	#sudo parted $(INSTALL_DEV) set 1 hidden on
-	sudo parted $(INSTALL_DEV) mkpart LightOS_System 10M $(LIGHTOS_SYSTEM_PART_END)
-	sudo parted $(INSTALL_DEV) set 1 boot on
+	sudo parted $(INSTALL_DEV) mkpart Gap0 2048s 10M
 	sudo parted $(INSTALL_DEV) set 1 hidden on
-	sudo parted $(INSTALL_DEV) set 1 esp on
+	sudo parted $(INSTALL_DEV) mkpart LightOS_System 10M $(LIGHTOS_SYSTEM_PART_END)
+	sudo parted $(INSTALL_DEV) set 2 boot on
+	sudo parted $(INSTALL_DEV) set 2 hidden on
+	sudo parted $(INSTALL_DEV) set 2 esp on
 	sudo parted $(INSTALL_DEV) mkpart LightOS_Data $(LIGHTOS_SYSTEM_PART_END) 100%
-	sudo parted $(INSTALL_DEV) set 2 hidden off
-	sudo parted $(INSTALL_DEV) set 2 boot off
-	sudo parted $(INSTALL_DEV) set 2 esp off
+	sudo parted $(INSTALL_DEV) set 3 hidden off
+	sudo parted $(INSTALL_DEV) set 3 boot off
+	sudo parted $(INSTALL_DEV) set 3 esp off
 	sudo partprobe $(INSTALL_DEV)
 	@echo Making System filesystem
-	sudo mkfs.fat -F 32 $(INSTALL_DEV)1
-	@echo Making Data filesystem
 	sudo mkfs.fat -F 32 $(INSTALL_DEV)2
+	@echo Making Data filesystem
+	sudo mkfs.fat -F 32 $(INSTALL_DEV)3
 	mkdir -p $(BOOTRT_DIR)
 
 	@echo Mounting LightOS System partition
-	sudo mount $(INSTALL_DEV)1 $(BOOTRT_DIR)
+	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
 
 	sudo mkdir -p $(BOOTRT_DIR)/EFI/BOOT
 	sudo cp $(BIN_OUT)/$(OUT_EFI) $(BOOTRT_DIR)/EFI/BOOT/BOOTX64.EFI
@@ -229,7 +229,7 @@ install_seperated:
 
 	sudo umount $(BOOTRT_DIR)
 
-	sudo mount $(INSTALL_DEV)2 $(BOOTRT_DIR)
+	sudo mount $(INSTALL_DEV)3 $(BOOTRT_DIR)
 	sudo cp -r $(LIGHTOS_FULLPATH)/system/* $(BOOTRT_DIR)
 
 	sudo umount $(BOOTRT_DIR)
