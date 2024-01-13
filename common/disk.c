@@ -12,8 +12,9 @@
 
 disk_dev_t* bootdevice = nullptr;
 
-#define DISK_SYSTEM_INDEX 0
-#define DISK_DATA_INDEX 1
+#define DISK_BUFFER_INDEX 0
+#define DISK_SYSTEM_INDEX 1
+#define DISK_DATA_INDEX 2
 
 #define DISK_BUFFER_SIZE (5ul * Mib)
 
@@ -313,24 +314,38 @@ gpt_entry_set_partition_name(gpt_entry_t* entry, const char* name)
 static gpt_entry_t* 
 disk_add_gpt_partition_entry(disk_dev_t* device, gpt_entry_t* entry, const char* name, uintptr_t start_offset, size_t size, uintptr_t attrs, guid_t guid)
 {
-  memset(entry, 0, sizeof(*entry));
-
   entry->attributes = attrs;
   entry->starting_lba = ALIGN_DOWN(start_offset, device->effective_sector_size) / device->effective_sector_size;
-  entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
+
+  if (size)
+    entry->ending_lba = entry->starting_lba + (ALIGN_UP(size, device->effective_sector_size) / device->effective_sector_size);
 
   /*
    * Make sure to clamp the end lba 
    * NOTE: the last LBA on disk is backup GPT header, so make sure to end this partition
    * before that
    */
-  if (entry->ending_lba >= device->total_sectors-1)
+  if (!size || entry->ending_lba >= device->total_sectors-1)
     entry->ending_lba = device->total_sectors - 2;
 
+  entry->unique_partition_guid = (guid_t) {
+    .a = (uint32_t)(start_offset & 0xffffffff),
+    .b = (uint16_t)(start_offset >> 32),
+    .c = (uint16_t)(start_offset >> 48),
+    .d = {
+      0x69,
+      0xAA,
+      0xF5,
+      0xDD,
+      0x33,
+      0xF5,
+      0xDD,
+      0x33,
+    }
+  };
   entry->partition_type_guid = guid;
 
   gpt_entry_set_partition_name(entry, name);
-
   create_and_link_partition_dev(device, entry->starting_lba, entry->ending_lba);
   return entry;
 }
@@ -365,7 +380,7 @@ gpt_entry_get_end_offset(disk_dev_t* device, gpt_entry_t* entry)
 }
 
 int
-disk_install_partitions(disk_dev_t* device)
+disk_install_partitions(disk_dev_t* device, bool add_gap)
 {
   EFI_STATUS s;
   uint32_t crc_buffer;
@@ -385,7 +400,7 @@ disk_install_partitions(disk_dev_t* device)
   ctx = get_light_ctx();
   partition_count = 128;
   crc_buffer = 0;
-  total_required_size = ALIGN_UP(sizeof(gpt_header_t), device->effective_sector_size) + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
+  total_required_size = device->effective_sector_size + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
 
   /* Prevent accidental installations */
   if (!ctx->install_confirmed)
@@ -403,9 +418,6 @@ disk_install_partitions(disk_dev_t* device)
   header_template = (gpt_header_t*)gpt_buffer;
   /* First entry will be at the start of the next lba after the header */
   entry_start = (gpt_entry_t*)((uint8_t*)gpt_buffer + device->effective_sector_size);
-
-  /* Bruh, we need to setup an entire GPT header + entries ourselves -_- */
-  memset(header_template, 0, sizeof(*header_template));
 
   memcpy(header_template->signature, "EFI PART", 8);
 
@@ -428,18 +440,25 @@ disk_install_partitions(disk_dev_t* device)
   header_template->revision = 0x00010000;
   header_template->header_size = sizeof(*header_template);
 
-  /* Clear all the partitions */
-  for (uint32_t i = 0; i < partition_count; i++)
-    memset(&entry_start[i], 0, sizeof(gpt_entry_t));
+  previous_offset = header_template->first_usable_lba * device->effective_sector_size;
+
+  if (add_gap) {
+    /* Realistically, the kernel + bootloader should not take more space than this */
+    previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightGAP", header_template->first_usable_lba * device->effective_sector_size, 10 * Mib, 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+    previous_offset = gpt_entry_get_end_offset(device, previous_entry);
+
+    /* Clear the buffer partition */
+    device->f_write_zero(device, (previous_entry->ending_lba - previous_entry->starting_lba) * device->effective_sector_size, previous_offset);
+  }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX], "LightOS System", header_template->first_usable_lba * device->effective_sector_size, 1 * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX - (!!add_gap)], "LightOS System", previous_offset, 1ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
   /* Add partition entry for system data */
-  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX - (!!add_gap)], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   /* Set this partition to be the data partition */
   device->next_partition->flags |= DISK_FLAG_DATA_PART;
 

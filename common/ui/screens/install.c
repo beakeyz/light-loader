@@ -8,6 +8,7 @@
 #include "ui/button.h"
 #include "ui/component.h"
 #include "ui/selector.h"
+#include <stdio.h>
 #include <ui/screens/install.h>
 #include <font.h>
 #include <file.h>
@@ -46,6 +47,7 @@ static char* system_copy_files[] = {
 static const uint32_t system_file_count = sizeof(system_copy_files) / sizeof(*system_copy_files);
 static const uint32_t max_disks = sizeof(disk_labels) / sizeof(*disk_labels);
 static button_component_t* current_device;
+static bool add_buffer_partition = false;
 
 #define INSTALL_ERR_MASK        (0x80000000)
 #define INSTALL_ERR(a)          (INSTALL_ERR_MASK | (a))
@@ -233,6 +235,8 @@ construct_installscreen(light_component_t** root, light_gfx_t* gfx)
     current_i++;
   }
 
+  create_switch(root, "Add buffer partition?", 24, gfx->height - 128, (gfx->width >> 1) - 24, gfx->current_font->height * 2, &add_buffer_partition);
+
   create_switch(root, "Confirm my installation", 24, gfx->height - 94, (gfx->width >> 1) - 24, gfx->current_font->height * 2, &ctx->install_confirmed);
 
   create_button(root, "Install", 24, gfx->height - 28 - 8, gfx->width >> 1, 28, install_btn_onclick, nullptr);
@@ -337,11 +341,13 @@ perform_install()
   if (disk_did_boot_from(this))
     return INSTALL_ERR_BOOTDEVICE;
 
-  error = disk_install_partitions(this);
+  printf("THing");
+  error = disk_install_partitions(this, add_buffer_partition);
 
   if (error)
     return error;
 
+  printf("Other");
   cur_partition = this->next_partition;
 
   while (cur_partition) {

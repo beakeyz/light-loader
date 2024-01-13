@@ -72,7 +72,7 @@ KERNEL_RAMDISK_NAME=anivaRamdisk.igz
 KERNEL_INTERNAL_RAMDISK_NAME=rdisk.igz
 
 # Path to the lighthouse-os project folder
-LIGHTOS_FULLPATH=/home/joost/src/c/lighthouse-os
+LIGHTOS_FULLPATH=/home/beakeyz/Source/c/lighthouse-os
 
 LIGHTOS_KERNEL_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_ELF_NAME)
 LIGHTOS_RAMDISK_PATH=$(LIGHTOS_FULLPATH)/out/$(KERNEL_RAMDISK_NAME)

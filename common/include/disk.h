@@ -96,7 +96,7 @@ int disk_clear_cache(disk_dev_t* device, uint64_t block);
 
 int disk_flush(disk_dev_t* device);
 
-int disk_install_partitions(disk_dev_t* device);
+int disk_install_partitions(disk_dev_t* device, bool add_gap);
 bool disk_did_boot_from(disk_dev_t* device);
 
 typedef struct gpt_header {

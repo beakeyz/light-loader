@@ -438,15 +438,15 @@ boot_context_configuration(light_ctx_t* ctx)
 
   /* Add the system pointers */
   if (ctx->sys_ptrs.xsdp) {
-    struct multiboot_tag_new_acpi* new_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_NEW, sizeof(struct multiboot_tag_new_acpi) + sizeof(rsdp_t));
+    struct multiboot_tag_new_acpi* new_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_NEW, sizeof(struct multiboot_tag_new_acpi) + sizeof(uint64_t));
 
-    memcpy(new_acpi->rsdp, ctx->sys_ptrs.xsdp, sizeof(rsdp_t));
+    memcpy(new_acpi->rsdp, &ctx->sys_ptrs.xsdp, sizeof(uint64_t));
   } 
 
   if (ctx->sys_ptrs.rsdp) {
-    struct multiboot_tag_old_acpi* old_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_OLD, sizeof(struct multiboot_tag_old_acpi) + 20);
+    struct multiboot_tag_old_acpi* old_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_OLD, sizeof(struct multiboot_tag_old_acpi) + sizeof(uint64_t));
 
-    memcpy(old_acpi->rsdp, ctx->sys_ptrs.rsdp, 20);
+    memcpy(old_acpi->rsdp, &ctx->sys_ptrs.rsdp, sizeof(uint64_t));
   }
 
   error = ctx->f_fw_exit();
