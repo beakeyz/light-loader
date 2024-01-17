@@ -1,8 +1,6 @@
 #include "boot/boot.h"
 #include "ctx.h"
-#include "disk.h"
 #include "efidef.h"
-#include "efidevp.h"
 #include "efiprot.h"
 #include "framebuffer.h"
 #include "fs.h"

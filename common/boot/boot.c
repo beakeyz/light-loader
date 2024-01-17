@@ -440,13 +440,15 @@ boot_context_configuration(light_ctx_t* ctx)
   if (ctx->sys_ptrs.xsdp) {
     struct multiboot_tag_new_acpi* new_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_NEW, sizeof(struct multiboot_tag_new_acpi) + sizeof(uint64_t));
 
-    memcpy(new_acpi->rsdp, &ctx->sys_ptrs.xsdp, sizeof(uint64_t));
+    memset(new_acpi->rsdp, 0, sizeof(uint64_t));
+    *(uint64_t*)new_acpi->rsdp = (uint64_t)ctx->sys_ptrs.xsdp;
   } 
 
   if (ctx->sys_ptrs.rsdp) {
     struct multiboot_tag_old_acpi* old_acpi = add_multiboot_tag(MULTIBOOT_TAG_TYPE_ACPI_OLD, sizeof(struct multiboot_tag_old_acpi) + sizeof(uint64_t));
 
-    memcpy(old_acpi->rsdp, &ctx->sys_ptrs.rsdp, sizeof(uint64_t));
+    memset(old_acpi->rsdp, 0, sizeof(uint64_t));
+    *(uint64_t*)old_acpi->rsdp = (uint64_t)ctx->sys_ptrs.rsdp;
   }
 
   error = ctx->f_fw_exit();

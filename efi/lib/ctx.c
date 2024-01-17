@@ -5,7 +5,6 @@
 #include "efilib.h"
 #include "heap.h"
 #include "rsdp.h"
-#include <stdio.h>
 #include <sys/ctx.h>
 #include <memory.h>
 
@@ -66,10 +65,12 @@ gather_system_pointers(system_ptrs_t* ptrs)
 
     switch (current_type) {
       case XSDP:
-        if (!ptrs->xsdp)
-          ptrs->xsdp = table->VendorTable;
+        /* Always choose xsdp over rsdp */
+        ptrs->rsdp = NULL;
+        ptrs->xsdp = table->VendorTable;
         break;
       case RSDP:
+        /* Found a rsdp, yoink it */
         if (!ptrs->rsdp)
           ptrs->rsdp = table->VendorTable;
         break;
@@ -78,7 +79,7 @@ gather_system_pointers(system_ptrs_t* ptrs)
     }
 
     /* Really no need to search any more */
-    if (ptrs->xsdp && ptrs->rsdp)
+    if (ptrs->xsdp)
       break;
   }
 }
@@ -153,7 +154,7 @@ gather_memmap(struct light_ctx* ctx)
 
     ctx->mmap[ctx->mmap_entries++] = (light_mmap_entry_t) {
       .size = desc->NumberOfPages * EFI_PAGE_SIZE,
-      .paddr = ALIGN_UP(desc->PhysicalStart, EFI_PAGE_SIZE),
+      .paddr = ALIGN_DOWN(desc->PhysicalStart, EFI_PAGE_SIZE),
       .type = get_efi_memory_type(desc->Type),
       .pad = 0,
     };
