@@ -1,7 +1,5 @@
 #include "boot/multiboot.h"
 #include "ctx.h"
-#include "efilib.h"
-#include "elf.h"
 #include <lelf.h>
 #include "elf64.h"
 #include "file.h"
@@ -454,7 +452,7 @@ boot_context_configuration(light_ctx_t* ctx)
   error = ctx->f_fw_exit();
 
   if (error)
-    panic("Failed to exit the firmware!");
+    panic("Failed to exit the firmware! Try to restart the system.");
 
   /* Convert our lightloader mmap to a multiboot one and create the memory map tag */
   size_t entry_count = NULL;
@@ -489,7 +487,7 @@ boot_context_configuration(light_ctx_t* ctx)
     mmap_tag->entries[i] = final_mmap[i];
   }
 
-  struct multiboot_tag* end_tag = add_multiboot_tag(0, sizeof(struct multiboot_tag));
+  (void)add_multiboot_tag(0, sizeof(struct multiboot_tag));
 
   /* Call our muiltiboot bootstub =) */
   multiboot2_boot_entry(
