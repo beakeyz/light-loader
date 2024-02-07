@@ -1,4 +1,7 @@
-# TODO: make loader a standalone makeproject
+#
+# TODO: Merge the loader with lightos
+#
+
 DIRECTORY_GUARD=mkdir -p $(@D)
 
 define DEFAULT_VAR =
@@ -10,7 +13,9 @@ define DEFAULT_VAR =
     endif
 endef
 
-$(eval $(call DEFAULT_VAR,CC,x86_64-pc-lightos-gcc))
+THIS_DIR=$(shell pwd)
+
+$(eval $(call DEFAULT_VAR,CC,$(THIS_DIR)/tools/cc/bin/x86_64-pc-lightos-gcc))
 $(eval $(call DEFAULT_VAR,LD,ld))
 $(eval $(call DEFAULT_VAR,OBJCOPY,objcopy))
 $(eval $(call DEFAULT_VAR,ASM_COMP,nasm))
