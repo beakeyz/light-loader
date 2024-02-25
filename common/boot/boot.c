@@ -196,7 +196,7 @@ relocate_ramdisk(light_relocation_t** relocations, void* current_buffer, size_t 
   if (!relocations || !(*relocations))
     return NULL;
 
-  highest = highest_relocation_addr(*relocations);
+  highest = ALIGN_UP(highest_relocation_addr(*relocations, NULL), PAGE_SIZE);
 
   if (!highest)
     return NULL;
@@ -257,7 +257,7 @@ prepare_multiboot_buffer(light_relocation_t** relocations)
 
   if (relocation_does_overlap(relocations, multiboot_reloc_addr,  MULTIBOOT_BUFF_SIZE))
     */
-  multiboot_reloc_addr = highest_relocation_addr(*relocations);
+  multiboot_reloc_addr = ALIGN_UP(highest_relocation_addr(*relocations, NULL), PAGE_SIZE);
 
   if (!create_relocation(relocations, (uintptr_t)multiboot_buffer, multiboot_reloc_addr, MULTIBOOT_BUFF_SIZE))
     return NULL;
@@ -500,4 +500,57 @@ boot_context_configuration(light_ctx_t* ctx)
       );
 
   panic("Returned from the kernel somehow!");
+}
+
+static
+inline
+void
+_kernel_opts_add_char(char* str, char c, uint64_t* idx)
+{
+  if (!idx)
+    return;
+
+  str[*idx] = c;
+  (*idx)++;
+}
+
+static 
+inline 
+void 
+_kernel_opts_add_str(char* opts, const char* str, uint64_t* idx)
+{
+  if (!idx)
+    return;
+
+  while (str[*idx])
+    _kernel_opts_add_char(opts, str[*idx], idx);
+}
+
+/*!
+ * @brief: Adds an entry to the 
+ */
+void 
+boot_add_kernel_opt(struct light_ctx* ctx, const char* key, const char* value)
+{
+  uint64_t idx;
+  light_boot_config_t* cfg = &ctx->light_bcfg;
+
+  if (!cfg->kernel_opts) {
+    cfg->kernel_opts = heap_allocate(LIGHT_BOOT_KERNEL_OPTS_LEN);
+    memset(cfg->kernel_opts, 0, LIGHT_BOOT_KERNEL_OPTS_LEN);
+  }
+
+  idx = 0;
+
+  while (!cfg->kernel_opts[idx])
+    idx++;
+
+  /* Add a spacer */
+  _kernel_opts_add_char(cfg->kernel_opts, ' ', &idx);
+  /* Add the key symbol */
+  _kernel_opts_add_str(cfg->kernel_opts, key, &idx);
+  /* Add the assignment opperator */
+  _kernel_opts_add_char(cfg->kernel_opts, '=', &idx);
+  /* Add the value */
+  _kernel_opts_add_str(cfg->kernel_opts, value, &idx);
 }

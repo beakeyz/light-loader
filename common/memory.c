@@ -1,4 +1,33 @@
 #include "memory.h"
+#include "ctx.h"
+#include <stddef.h>
+
+uintptr_t 
+memory_get_closest_usable_addr(uintptr_t addr)
+{
+  uintptr_t best_addr;
+  uintptr_t c_delta;
+  light_mmap_entry_t* mmap;
+
+  for (uintptr_t i = 0; i < g_light_ctx.mmap_entries; i++) {
+    mmap = &g_light_ctx.mmap[i];
+
+    if (mmap->type != MEMMAP_USABLE)
+      continue;
+    
+    /* Great! This address is just usable */
+    if (addr >= mmap->paddr && addr < mmap->paddr + mmap->size)
+      return addr;
+
+    if (addr > mmap->paddr + mmap->size)
+      continue;
+
+    if ((mmap->paddr - addr) < (best_addr - addr))
+      best_addr = mmap->paddr;
+  }
+
+  return best_addr;
+}
 
 void
 memset(void* start, int val, size_t size)
@@ -78,3 +107,4 @@ char* to_string(uint64_t val) {
     to_str_buff[size + 1] = 0;
     return to_str_buff;
 }
+

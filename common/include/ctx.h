@@ -8,11 +8,9 @@
  */
 
 #include "disk.h"
-#include "efiprot.h"
 #include "key.h"
 #include "mouse.h"
 #include "rsdp.h"
-#include <stddef.h>
 #include <stdint.h>
 #include <boot/boot.h>
 

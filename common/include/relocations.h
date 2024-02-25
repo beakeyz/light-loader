@@ -14,6 +14,6 @@ light_relocation_t* create_relocation(light_relocation_t** link_start, uintptr_t
 //void remove_relocation(light_relocation_t** link_start, light_relocation_t* relocation);
 
 bool relocation_does_overlap(light_relocation_t** start, uintptr_t addr, size_t size);
-uintptr_t highest_relocation_addr(light_relocation_t* link_start);
+uintptr_t highest_relocation_addr(light_relocation_t* link_start, uintptr_t previous_size);
 
 #endif // !__LIGHTLOADER_RELOCATIONS__

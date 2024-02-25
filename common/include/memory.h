@@ -1,14 +1,16 @@
 #ifndef __LIGHLOADER_MEMORY__
 #define __LIGHLOADER_MEMORY__
 
-#include "efidef.h"
-#include <stddef.h>
+#include <stdint.h>
 
 // defines for alignment
 #define ALIGN_UP(addr, size) \
     (((addr) % (size) == 0) ? (addr) : (addr) + (size) - ((addr) % (size)))
 
 #define ALIGN_DOWN(addr, size) ((addr) - ((addr) % (size)))
+
+#define PAGE_SHIFT 12
+#define PAGE_SIZE (1 << PAGE_SHIFT)
 
 #define MEMMAP_USABLE 1
 #define MEMMAP_RESERVED 2
@@ -31,6 +33,8 @@ typedef struct {
   size_t up;
   size_t lo;
 } meminfo_t;
+
+uintptr_t memory_get_closest_usable_addr(uintptr_t addr);
 
 void memset(void*, int, size_t);
 void* memcpy(void* dst, const void* src, size_t size);

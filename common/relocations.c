@@ -1,4 +1,5 @@
 #include "heap.h"
+#include "memory.h"
 #include "stddef.h"
 #include <relocations.h>
 
@@ -67,15 +68,20 @@ remove_relocation(light_relocation_t** link_start, light_relocation_t* relocatio
 */
 
 uintptr_t 
-highest_relocation_addr(light_relocation_t* link_start)
+highest_relocation_addr(light_relocation_t* link_start, uintptr_t previous_addr)
 {
   uintptr_t ret = 0;
 
   for (light_relocation_t* i = link_start; i; i = i->next) {
-    if (i->target + i->size > ret)
+    if (i->target + i->size > ret || (previous_addr >= i->target && previous_addr < (i->target + i->size)))
       ret = i->target + i->size;
   }
 
-  return ret;
+  ret = memory_get_closest_usable_addr(ret);
+
+  if (ret == previous_addr)
+    return ret;
+
+  return highest_relocation_addr(link_start, ret);
 }
 
