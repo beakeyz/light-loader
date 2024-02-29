@@ -2,7 +2,6 @@
 #include "gfx.h"
 #include "heap.h"
 #include "stddef.h"
-#include "ui/box.h"
 #include "ui/button.h"
 #include "ui/input_box.h"
 #include <stdio.h>
@@ -12,31 +11,35 @@
 struct light_option l_options[] = {
   {
     "Use kterm",
+    "use_kterm",
     LOPTION_TYPE_BOOL,
     false,
     { 0, }
   },
   {
     "Create ENV file on install",
+    "cr_env",
     LOPTION_TYPE_BOOL,
     false,
     { 0, }
   },
   {
     "Use ramdisk",
+    "force_rd",
     LOPTION_TYPE_BOOL,
     false,
     { 0, }
   },
   {
-    "Test option two",
-    LOPTION_TYPE_STRING,
-    (uintptr_t)"Test string lmao",
+    "Use legacy interrupt hardware",
+    "force_pit",
+    LOPTION_TYPE_BOOL,
+    true,
     { 0, }
   },
 };
 
-static uint32_t l_options_len = sizeof(l_options) / sizeof(l_options[0]);
+uint32_t l_options_len = sizeof(l_options) / sizeof(l_options[0]);
 
 int test_onclick(button_component_t* comp)
 {

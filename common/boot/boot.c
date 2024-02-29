@@ -7,6 +7,7 @@
 #include "heap.h"
 #include "relocations.h"
 #include "rsdp.h"
+#include "ui/screens/options.h"
 #include <memory.h>
 #include <boot/boot.h>
 #include <stdint.h>
@@ -227,7 +228,7 @@ relocate_bootstub()
 }
 
 #define MULTIBOOT_DEFAULT_LOAD_BASE 0x10000
-#define MULTIBOOT_BUFF_SIZE 0x2000
+#define MULTIBOOT_BUFF_SIZE 0x4000
 
 uintptr_t multiboot_buffer;
 uintptr_t current_multiboot_tag;
@@ -405,6 +406,30 @@ boot_context_configuration(light_ctx_t* ctx)
 
   memcpy(name_tag->strn, loader_name, strlen(loader_name) + 1);
 
+  struct multiboot_tag_string* cmdline_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_CMDLINE, sizeof(struct multiboot_tag_string) + LIGHT_BOOT_KERNEL_OPTS_LEN);
+
+  /* Add the kernel options to the cmdline */
+  for (uint32_t i = 0; i < l_options_len; i++) {
+    switch (l_options[i].type) {
+      case LOPTION_TYPE_BOOL:
+        boot_add_kernel_opt(ctx, l_options[i].opt, l_options[i].value ? "1" : "0");
+        break;
+      case LOPTION_TYPE_STRING:
+        boot_add_kernel_opt(ctx, l_options[i].opt, (const char*)l_options[i].value);
+        break;
+      case LOPTION_TYPE_NUMBER:
+        boot_add_kernel_opt(ctx, l_options[i].opt, to_string(l_options[i].value));
+        break;
+    }
+  }
+
+  /* Copy over the thing */
+  memcpy(cmdline_tag->strn, ctx->light_bcfg.kernel_opts, LIGHT_BOOT_KERNEL_OPTS_LEN);
+
+  printf(ctx->light_bcfg.kernel_opts);
+
+  for (;;) {}
+
   /* Create a framebuffer tag if the kernel wants one */
   if (get_multiboot_header_tag(mb_header, MULTIBOOT_HEADER_TAG_FRAMEBUFFER)) {
     struct multiboot_tag_framebuffer* fb_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_FRAMEBUFFER, sizeof(struct multiboot_tag_framebuffer));
@@ -502,28 +527,17 @@ boot_context_configuration(light_ctx_t* ctx)
   panic("Returned from the kernel somehow!");
 }
 
-static
-inline
-void
-_kernel_opts_add_char(char* str, char c, uint64_t* idx)
-{
-  if (!idx)
-    return;
-
-  str[*idx] = c;
-  (*idx)++;
-}
-
 static 
-inline 
 void 
 _kernel_opts_add_str(char* opts, const char* str, uint64_t* idx)
 {
+  uint64_t i = 0;
+
   if (!idx)
     return;
 
-  while (str[*idx])
-    _kernel_opts_add_char(opts, str[*idx], idx);
+  while (str[i])
+    opts[(*idx)++] = str[i++];
 }
 
 /*!
@@ -542,15 +556,16 @@ boot_add_kernel_opt(struct light_ctx* ctx, const char* key, const char* value)
 
   idx = 0;
 
-  while (!cfg->kernel_opts[idx])
+  while (cfg->kernel_opts[idx])
     idx++;
 
   /* Add a spacer */
-  _kernel_opts_add_char(cfg->kernel_opts, ' ', &idx);
+  _kernel_opts_add_str(cfg->kernel_opts, " ", &idx);
   /* Add the key symbol */
   _kernel_opts_add_str(cfg->kernel_opts, key, &idx);
   /* Add the assignment opperator */
-  _kernel_opts_add_char(cfg->kernel_opts, '=', &idx);
+  _kernel_opts_add_str(cfg->kernel_opts, "=\'", &idx);
   /* Add the value */
   _kernel_opts_add_str(cfg->kernel_opts, value, &idx);
+  _kernel_opts_add_str(cfg->kernel_opts, "\'", &idx);
 }
