@@ -426,10 +426,6 @@ boot_context_configuration(light_ctx_t* ctx)
   /* Copy over the thing */
   memcpy(cmdline_tag->strn, ctx->light_bcfg.kernel_opts, LIGHT_BOOT_KERNEL_OPTS_LEN);
 
-  printf(ctx->light_bcfg.kernel_opts);
-
-  for (;;) {}
-
   /* Create a framebuffer tag if the kernel wants one */
   if (get_multiboot_header_tag(mb_header, MULTIBOOT_HEADER_TAG_FRAMEBUFFER)) {
     struct multiboot_tag_framebuffer* fb_tag = add_multiboot_tag(MULTIBOOT_TAG_TYPE_FRAMEBUFFER, sizeof(struct multiboot_tag_framebuffer));
