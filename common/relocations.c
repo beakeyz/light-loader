@@ -70,10 +70,10 @@ remove_relocation(light_relocation_t** link_start, light_relocation_t* relocatio
 uintptr_t 
 highest_relocation_addr(light_relocation_t* link_start, uintptr_t previous_addr)
 {
-  uintptr_t ret = 0;
+  uintptr_t ret = previous_addr;
 
   for (light_relocation_t* i = link_start; i; i = i->next) {
-    if (i->target + i->size > ret || (previous_addr >= i->target && previous_addr < (i->target + i->size)))
+    if ((i->target + i->size) > ret)
       ret = i->target + i->size;
   }
 

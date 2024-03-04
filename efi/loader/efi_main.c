@@ -57,12 +57,18 @@ efi_exit_bs()
   if (status)
     return -1;
 
-  status = BS->GetMemoryMap(&size, mmap, &key, &descriptor_size, &version);
+  for (uint32_t i = 0; i < 8; i++) {
+    status = BS->GetMemoryMap(&size, mmap, &key, &descriptor_size, &version);
 
-  if (status)
-    return -3;
+    if (status)
+      return -3;
 
-  status = BS->ExitBootServices(IH, key);
+    status = BS->ExitBootServices(IH, key);
+
+    /* Yay we did it */
+    if (!EFI_ERROR(status))
+      break;
+  }
 
   if (EFI_ERROR(status))
     return -4;

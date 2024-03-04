@@ -1,5 +1,4 @@
 #include "ctx.h"
-#include "efilib.h"
 #include "efiprot.h"
 #include "font.h"
 #include "key.h"
@@ -289,6 +288,12 @@ gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, light
   }
 }
 
+/*!
+ * @brief: Switch back and front buffer
+ *
+ * TODO: this is UEFI specific code, move this to the platform-dependant section for UEFI and 
+ * create an API throught the context thingy
+ */
 int 
 gfx_switch_buffers(light_gfx_t* gfx)
 {

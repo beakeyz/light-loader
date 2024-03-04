@@ -13,7 +13,7 @@ struct light_option l_options[] = {
     "Use kterm",
     "use_kterm",
     LOPTION_TYPE_BOOL,
-    false,
+    true,
     { 0, }
   },
   {

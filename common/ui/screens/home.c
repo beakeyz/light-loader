@@ -1,10 +1,7 @@
 #include "gfx.h"
 #include "stddef.h"
-#include "ui/box.h"
 #include "ui/button.h"
 #include "ui/component.h"
-#include "ui/image.h"
-#include "ui/input_box.h"
 #include <ui/screens/home.h>
 #include <ctx.h>
 #include <font.h>
