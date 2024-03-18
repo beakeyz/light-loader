@@ -1,7 +1,6 @@
 #ifndef __LIGHTLOADER_DISK__
 #define __LIGHTLOADER_DISK__
 
-#include "efidef.h"
 #include "fs.h"
 #include "guid.h"
 #include <stdint.h>

@@ -4,10 +4,8 @@
 #include "gfx.h"
 #include "memory.h"
 #include "stddef.h"
-#include "ui/box.h"
 #include "ui/button.h"
 #include "ui/component.h"
-#include "ui/selector.h"
 #include <stdio.h>
 #include <ui/screens/install.h>
 #include <font.h>
@@ -341,13 +339,11 @@ perform_install()
   if (disk_did_boot_from(this))
     return INSTALL_ERR_BOOTDEVICE;
 
-  printf("THing");
   error = disk_install_partitions(this, add_buffer_partition);
 
   if (error)
     return error;
 
-  printf("Other");
   cur_partition = this->next_partition;
 
   while (cur_partition) {
@@ -396,10 +392,7 @@ perform_install()
          *  - All the files that are inside the ramdisk
          *  - ...
          */
-        error = cur_partition->filesystem->f_create_path(cur_partition->filesystem, "data.txt");
-
-        if (error)
-          return error;
+        cur_partition->filesystem->f_create_path(cur_partition->filesystem, "data.txt");
         break;
     }
 

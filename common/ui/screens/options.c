@@ -17,14 +17,7 @@ struct light_option l_options[] = {
     { 0, }
   },
   {
-    "Create ENV file on install",
-    "cr_env",
-    LOPTION_TYPE_BOOL,
-    false,
-    { 0, }
-  },
-  {
-    "Use ramdisk",
+    "Force ramdisk",
     "force_rd",
     LOPTION_TYPE_BOOL,
     false,
@@ -36,6 +29,20 @@ struct light_option l_options[] = {
     LOPTION_TYPE_BOOL,
     true,
     { 0, }
+  },
+  {
+    "Kernel verbose debug info",
+    "krnl_dbg",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0, }
+  },
+  {
+    "Test",
+    "placeholder",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0 },
   },
 };
 
@@ -122,6 +129,8 @@ construct_optionsscreen(light_component_t** root, light_gfx_t* gfx)
     }
   }
 
+  create_button(root, "Test create", 4, gfx->height - 24, 128, 20, test_onclick, nullptr);
+  create_button(root, "Test open", 4, gfx->height - (24 * 2 + 4), 128, 20, open_test_onclick, nullptr);
   return 0;
 }
 

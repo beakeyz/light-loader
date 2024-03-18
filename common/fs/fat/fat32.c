@@ -807,7 +807,7 @@ __fat32_file_write(struct light_file* file, void* buffer, size_t size, uintptr_t
     goto free_and_exit;
 
   /* Add the size to this file */
-  dir_entry->filesize_bytes += size;
+  dir_entry->filesize_bytes = ffile->cluster_chain_length * f_priv->cluster_size;
 
   __fat32_write_cluster(file->parent_fs, cluster_buffer, ffile->direntry_cluster);
 
@@ -1140,7 +1140,8 @@ fat32_install(light_fs_t* fs, disk_dev_t* device)
 
   bpb.signature = 0x29;
   bpb.volume_id = cached_vol_id;
-  memcpy(&bpb.volume_label, "mkfs.fat   ", 11);
+  //memcpy(&bpb.volume_label, "NO LABEL   ", 11);
+  memset(&bpb.volume_label, 0, sizeof(bpb.volume_label));
 
   /* Make bios happy */
   bpb.content[510] = 0x55;

@@ -452,13 +452,13 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
   }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX - (!!add_gap)], "LightOS System", previous_offset, 1ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX - (!add_gap)], "LightOS System", previous_offset, 1ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
 
   /* Add partition entry for system data */
-  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX - (!!add_gap)], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+  disk_add_gpt_partition_entry(device, &entry_start[DISK_DATA_INDEX - (!add_gap)], "LightOS Data", previous_offset, ALIGN_DOWN(device->total_size - previous_offset - 16 * device->effective_sector_size, device->effective_sector_size), 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
   /* Set this partition to be the data partition */
   device->next_partition->flags |= DISK_FLAG_DATA_PART;
 
@@ -483,6 +483,8 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
 
   header_template->header_crc32 = crc_buffer;
 
+  device->f_write_zero(device, device->effective_sector_size, 0);
+
   /* 
    * Write this on lba 1 =) 
    * FIXME: when we only call f_write once here, we are fine and the GPT sceme gets detected 
@@ -492,6 +494,7 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
    */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
   device->f_write(device, gpt_buffer, 512, header_template->alt_lba);
+
 
   heap_free(gpt_buffer);
 
