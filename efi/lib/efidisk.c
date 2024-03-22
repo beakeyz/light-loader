@@ -5,10 +5,8 @@
 #include "efierr.h"
 #include "efilib.h"
 #include "efiprot.h"
-#include "elf64.h"
 #include "file.h"
 #include "fs.h"
-#include "gfx.h"
 #include "guid.h"
 #include "heap.h"
 #include "stddef.h"
@@ -272,7 +270,7 @@ create_efi_disk(EFI_BLOCK_IO_PROTOCOL* blockio, EFI_DISK_IO_PROTOCOL* diskio)
   ret->optimal_transfer_factor = media->OptimalTransferLengthGranularity;
 
   /* Clamp the transfer size */
-  if (ret->optimal_transfer_factor == 0)         ret->optimal_transfer_factor = 32;
+  if (ret->optimal_transfer_factor == 0)         ret->optimal_transfer_factor = 64;
   else if (ret->optimal_transfer_factor > 512)   ret->optimal_transfer_factor = 512;
 
   ret->effective_sector_size = media->BlockSize;

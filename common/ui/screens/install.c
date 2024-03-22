@@ -264,41 +264,44 @@ copy_from_bootdisk(disk_dev_t* partition, char* path)
   if (!partition || !partition->filesystem)
     return -1;
 
+  printf("Opern");
   /* Open the bootdisk file */
   bootdisk_file = fopen(path);
   
   if (!bootdisk_file)
     return -1;
 
+  printf("Create");
   /* Create a path on our partition fs */
   error = partition->filesystem->f_create_path(partition->filesystem, path);
 
   if (error)
     goto dealloc_and_exit;
 
+  printf("Open again");
   /* Open the file on our partition fs */
   this_file = partition->filesystem->f_open(partition->filesystem, path);
 
   if (!this_file)
     goto dealloc_and_exit;
 
+  printf("Alloc again");
   /* Allocate a buffer for our bootdisk file */
   buffer = ctx->f_allocate(bootdisk_file->filesize);
 
   if (!buffer)
     goto dealloc_and_exit;
 
+  printf("Read again");
   /* Read the contents from the bootdisk file to our buffer */
   error = bootdisk_file->f_readall(bootdisk_file, buffer);
 
   if (error)
     goto dealloc_and_exit;
 
+  printf("Write again");
   /* Write the buffer to our new file */
   error = this_file->f_write(this_file, buffer, bootdisk_file->filesize, 0);
-
-  if (error)
-    goto dealloc_and_exit;
 
 dealloc_and_exit:
   if (buffer)
@@ -346,6 +349,12 @@ perform_install()
 
   cur_partition = this->next_partition;
 
+
+  printf("A");
+  printf("A");
+  printf("A");
+  printf("A");
+
   while (cur_partition) {
 
     /* Check if this is a system partition or a data partition */
@@ -353,6 +362,7 @@ perform_install()
       /* Install a filesystem on the system partition and copy files */
       case DISK_FLAG_SYS_PART:
 
+        printf("MAking ssystem part");
         /*
          * Install a filesystem on this partition 
          * TODO: let the user choose it's filesystem
@@ -362,6 +372,7 @@ perform_install()
         if (error || !cur_partition->filesystem)
           return error;
 
+        printf("Made Install");
         /* 
          * Copy over the needed files for this filesystem 
          * For the system partition, this will be:
@@ -369,15 +380,18 @@ perform_install()
          *  - ...
          */
         for (uint32_t i = 0; i < system_file_count; i++) {
+          printf(system_copy_files[i]);
           error = copy_from_bootdisk(cur_partition, system_copy_files[i]);
 
           if (error)
             return error;
         }
+        printf("Made ssystem part");
         break;
       /* Install a filesystem on the data partition and copy the files we need */
       case DISK_FLAG_DATA_PART:
 
+        printf("Made data part");
         /*
          * Install a filesystem on this partition 
          * TODO: let the user choose it's filesystem
@@ -393,6 +407,7 @@ perform_install()
          *  - ...
          */
         cur_partition->filesystem->f_create_path(cur_partition->filesystem, "data.txt");
+        printf("Made data part");
         break;
     }
 

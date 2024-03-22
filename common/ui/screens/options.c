@@ -38,6 +38,27 @@ struct light_option l_options[] = {
     { 0, }
   },
   {
+    "No ACPICA",
+    "no_acpica",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0 },
+  },
+  {
+    "No USB",
+    "no_usb",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0 },
+  },
+  {
+    "Keep EFI fb driver",
+    "keep_efifb",
+    LOPTION_TYPE_BOOL,
+    false,
+    { 0 },
+  },
+  {
     "Test",
     "placeholder",
     LOPTION_TYPE_BOOL,

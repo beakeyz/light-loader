@@ -379,18 +379,54 @@ gpt_entry_get_end_offset(disk_dev_t* device, gpt_entry_t* entry)
   return (entry->ending_lba + 1) * device->effective_sector_size;
 }
 
+#define MBR_SIG                 0xAA55
+#define MBR_SIG_OFFSET          0x1fe
+#define MBR_PARTENT_0_OFFSET    0x01BE
+#define MBR_EFI_PARTITION_TYPE  0xEE
+#define MBR_SECTOR_SIZE         512
+
+struct mbr_partition_entry {
+  uint8_t status;
+  uint8_t first_chs[3];
+  uint8_t type;
+  uint8_t last_chs[3];
+  uint32_t first_lba;
+  uint32_t sector_num;
+} __attribute__((packed));
+
+static inline void
+_write_protective_mbr(disk_dev_t* device)
+{
+  uint16_t mbr_sig = 0xaa55;
+
+  struct mbr_partition_entry entry = { 0 };
+
+  entry.first_chs[0] = 0;
+  entry.first_chs[1] = 2;
+  entry.first_chs[0] = 0;
+  memset(&entry.last_chs, 0xff, sizeof(entry.last_chs));
+
+  entry.type = MBR_EFI_PARTITION_TYPE;
+  entry.first_lba = 1;
+  entry.sector_num = (uint32_t)(device->total_size / MBR_SECTOR_SIZE);
+
+  device->f_write_zero(device, device->effective_sector_size, 0);
+  device->f_write(device, &entry, sizeof(entry), MBR_PARTENT_0_OFFSET);
+  device->f_write(device, &mbr_sig, sizeof(mbr_sig), MBR_SIG_OFFSET);
+}
+
 int
 disk_install_partitions(disk_dev_t* device, bool add_gap)
 {
   EFI_STATUS s;
   uint32_t crc_buffer;
-  light_ctx_t* ctx;
   uint32_t partition_count;
   uint32_t total_required_size;
+  uintptr_t previous_offset;
+  light_ctx_t* ctx;
   void* gpt_buffer;
   gpt_header_t* header_template;
   gpt_entry_t* entry_start;
-  uintptr_t previous_offset;
   gpt_entry_t* previous_entry;
 
   /* Can't install to a partition lmao */
@@ -398,7 +434,7 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
     return -1;
 
   ctx = get_light_ctx();
-  partition_count = 128;
+  partition_count = 80;
   crc_buffer = 0;
   total_required_size = device->effective_sector_size + ALIGN_UP(partition_count * sizeof(gpt_entry_t), device->effective_sector_size);
 
@@ -432,6 +468,11 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
   /* FIXME: When we have a secondary partition table at the end of the disk, this needs to take that into a count */
   header_template->last_usable_lba = device->total_sectors - 1;
 
+  /* GUID we yoinked from cfdisk lmao */
+  uint16_t guid[] = { 0x0483, 0xfcfe, 0x84ad, 0x4181, 0x188e, 0x768d, 0x26c1, 0xf48e };
+
+  memcpy(&header_template->disk_guid, guid, sizeof(guid));
+
   /* Protective MBR should be created at lba 0 */
   header_template->my_lba = 1;
   /* NOTE: This value gives anything that checks this a seizure */
@@ -444,15 +485,16 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
 
   if (add_gap) {
     /* Realistically, the kernel + bootloader should not take more space than this */
-    previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightGAP", header_template->first_usable_lba * device->effective_sector_size, 10 * Mib, 0, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
+    previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_BUFFER_INDEX], "LightGAP", header_template->first_usable_lba * device->effective_sector_size, 10 * Mib, GPT_ATTR_REQUIRED, (guid_t)LLOADER_PART_TYPE_BASIC_GUID);
     previous_offset = gpt_entry_get_end_offset(device, previous_entry);
 
+    device->next_partition->flags &= ~(DISK_FLAG_SYS_PART | DISK_FLAG_DATA_PART);
     /* Clear the buffer partition */
-    device->f_write_zero(device, (previous_entry->ending_lba - previous_entry->starting_lba) * device->effective_sector_size, previous_offset);
+    device->next_partition->f_write_zero(device->next_partition, device->next_partition->total_size, 0);
   }
 
   /* Realistically, the kernel + bootloader should not take more space than this */
-  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX - (!add_gap)], "LightOS System", previous_offset, 1ULL * Gib, GPT_ATTR_HIDDEN, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
+  previous_entry = disk_add_gpt_partition_entry(device, &entry_start[DISK_SYSTEM_INDEX - (!add_gap)], "LightOS System", previous_offset, 2ULL * Gib, GPT_ATTR_REQUIRED, (guid_t)EFI_PART_TYPE_EFI_SYSTEM_PART_GUID);
   previous_offset = gpt_entry_get_end_offset(device, previous_entry);
   /* Set this partition to be the system partition */
   device->next_partition->flags |= DISK_FLAG_SYS_PART;
@@ -483,7 +525,7 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
 
   header_template->header_crc32 = crc_buffer;
 
-  device->f_write_zero(device, device->effective_sector_size, 0);
+  _write_protective_mbr(device);
 
   /* 
    * Write this on lba 1 =) 
@@ -494,7 +536,6 @@ disk_install_partitions(disk_dev_t* device, bool add_gap)
    */
   device->f_write(device, gpt_buffer, total_required_size, device->effective_sector_size);
   device->f_write(device, gpt_buffer, 512, header_template->alt_lba);
-
 
   heap_free(gpt_buffer);
 
