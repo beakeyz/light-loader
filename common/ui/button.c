@@ -35,9 +35,8 @@ btn_should_update(light_component_t* component)
   if ((is_lmb_clicked(*component->mouse_buffer) || is_rmb_clicked(*component->mouse_buffer)) && !btn->is_clicked) {
     btn->is_clicked = true;
     button_click(btn);
-  } else if (!is_lmb_clicked(*component->mouse_buffer) && !is_rmb_clicked(*component->mouse_buffer)){
+  } else if (btn->is_clicked)
     btn->is_clicked = false;
-  }
 
   return true;
 }
