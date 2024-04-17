@@ -545,5 +545,5 @@ efi_discover_present_volumes()
     physical_count++;
   }
 
-  efi_deallocate(handles, buffer_size);
+  heap_free(handles);
 }

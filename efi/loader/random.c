@@ -2,6 +2,7 @@
 #include "efierr.h"
 #include "efilib.h"
 #include "efiprot.h"
+#include "heap.h"
 #include <random.h>
 #include <stdio.h>
 
@@ -29,14 +30,14 @@ init_efi_random()
       break;
   }
 
-  efi_deallocate(rng_handles, size);
+  heap_free(rng_handles);
   return (rng_prot == nullptr ? -1 : 0);
 }
 
 static int
 _fucked_random(uint32_t len, uint8_t* buf)
 {
-  static int call_offset = 0;
+  static uintptr_t call_offset = 0;
   EFI_TIME time;
   uintptr_t seed;
 
@@ -47,9 +48,9 @@ _fucked_random(uint32_t len, uint8_t* buf)
 
     seed = (uintptr_t)(time.Nanosecond | time.Second) ^ time.Day;
 
-    buf[i] = ((seed) + (call_offset ^ 0xff3328da829) * 0x24fd13) % 255;
+    buf[i] = (((call_offset ^ 669382104) + (seed) ^ 0xff3323) * 0x6939) % 255;
 
-    call_offset++;
+    call_offset += i;
   }
 
   return 0;

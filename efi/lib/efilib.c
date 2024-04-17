@@ -1,6 +1,7 @@
 #include "efiapi.h"
 #include "efidef.h"
 #include "efierr.h"
+#include "heap.h"
 #include "stddef.h"
 #include <efilib.h>
 
@@ -22,7 +23,7 @@ locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* si
 
   status = BS->LocateHandle(type, &guid, NULL, size, (void*)dummy_buffer);
 
-  *handle_list = efi_allocate(*size);
+  *handle_list = heap_allocate(*size);
 
   if (!(*handle_list))
     return 0;
@@ -30,7 +31,7 @@ locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* si
   status = BS->LocateHandle(type, &guid, NULL, size, *handle_list);
 
   if (EFI_ERROR(status)) {
-    efi_deallocate(*handle_list, *size);
+    heap_free(*handle_list);
     return 0;
   }
 

@@ -11,12 +11,17 @@
 #include <memory.h>
 
 struct tile {
-  bool has_mine;
-  bool is_uncovered;
-  bool is_flagged;
-  /* There are a maximum of 8 mines around a particular tile, which means 
-     we only need four bits to encode that */
-  uint8_t mines_around;
+  union {
+    struct {
+      bool has_mine;
+      bool is_uncovered;
+      bool is_flagged;
+      /* There are a maximum of 8 mines around a particular tile, which means 
+         we only need four bits to encode that */
+      uint8_t mines_around;
+    };
+    uint32_t gamedata;
+  };
   uint32_t index;
   button_component_t* btn;
 }; 
@@ -74,24 +79,17 @@ _reset_tiles_state()
 {
   for (uint32_t i = 0; i < tilecount; i++) {
     /* Everything +4 bytes is persistant data */
-    memset(&tiles[i], 0, 4);
+    tiles[i].gamedata = NULL;
   }
 }
 
 static inline void
 _init_mine_tile(struct tile* start, uint8_t hstep, uint8_t vstep)
 {
-  uint32_t x_offset = 0;
-  uint32_t y_offset = 0;
-
   for (uint32_t v = 0; v < vstep; v++) {
     for (uint32_t h = 0; h < hstep; h++) {
-      start[x_offset + y_offset].mines_around++;
-
-      x_offset++;
+      start[h + v * field_xres].mines_around++;
     }
-    x_offset = 0;
-    y_offset += field_xres;
   }
 }
 
@@ -102,7 +100,7 @@ _is_tile_at_edge(struct tile* t, bool* left, bool* right, bool* top, bool* botto
 
   if (t->index % field_xres == 0)
     *left = true;
-  else if (t->index % (field_xres-1) == 0)
+  else if ((t->index + 1) % field_xres == 0)
     *right = true;
 
   if (t->index < field_xres)
@@ -120,7 +118,6 @@ init_mine_tile(struct tile* t)
   struct tile* walker;
   uint8_t hstep, vstep;
   bool left, right, top, bottom;
-  uint32_t i = t->index;
 
   walker = t;
   hstep = vstep = 3;
@@ -157,7 +154,7 @@ init_minefield()
 
   tiles_cleared = 0;
   /* TODO: Make this user-defined */
-  minecount = 4;
+  minecount = 16;
 
   is_alive = true;
   mines_left = actual_mines_left = minecount;
@@ -185,7 +182,7 @@ init_minefield()
       init_mine_tile(c_tile);
 
     /* Update */
-    if (c_tile->btn && (c_tile->is_uncovered || c_tile->is_flagged))
+    if (c_tile->btn)
       c_tile->btn->parent->should_update = true;
   }
 }
