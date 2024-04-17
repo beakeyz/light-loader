@@ -1,11 +1,13 @@
 #include "boot/boot.h"
 #include "ctx.h"
+#include "efiapi.h"
 #include "efidef.h"
 #include "efiprot.h"
 #include "framebuffer.h"
 #include "fs.h"
 #include "gfx.h"
 #include "heap.h"
+#include "random.h"
 #include "stddef.h"
 #include "sys/ctx.h"
 #include "sys/efidisk.h"
@@ -16,7 +18,7 @@
 #include <file.h>
 #include <stdio.h>
 
-#define INITIAL_HEAPSIZE 128 * Mib
+#define INITIAL_HEAPSIZE 256 * Mib
 
 static efi_ctx_t __efi_ctx = { 0 };
 efi_ctx_t* efi_ctx;
@@ -27,6 +29,24 @@ extern bool efi_has_keyboard();
 extern bool efi_has_mouse();
 extern int efi_get_mousepos(light_mousepos_t* pos);
 extern int efi_get_keypress(light_key_t* key);
+
+int
+efi_shutdown()
+{
+  RT->ResetSystem(EfiResetShutdown, EFI_SUCCESS, NULL, NULL);
+
+  /* Should not be reached */
+  for (;;) {}
+}
+
+int
+efi_get_random(uint8_t* b_out, uint32_t b_len)
+{
+  if (get_efi_random(b_len, b_out))
+    return -1;
+
+  return 0;
+}
 
 void
 efi_exit(EFI_STATUS exit)
@@ -103,6 +123,8 @@ efi_setup_ctx(light_ctx_t* ctx)
   memset(ctx, 0, sizeof(light_ctx_t));
 
   ctx->f_fw_exit = efi_exit_bs;
+  ctx->f_shutdown = efi_shutdown;
+  ctx->f_get_random_num = efi_get_random;
   ctx->f_allocate = efi_allocate;
   ctx->f_deallcoate = efi_deallocate;
   ctx->has_fw = true;
@@ -200,6 +222,9 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
 
   /* Initialize the filesystems */
   init_fs();
+
+  /* Initialize rng */
+  init_efi_random();
 
   /* Grab some system information */
   get_light_ctx()->f_gather_sys_info();

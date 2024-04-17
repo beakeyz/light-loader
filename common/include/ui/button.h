@@ -12,12 +12,15 @@ struct light_image;
 typedef struct button_component {
   light_component_t* parent;
   bool is_clicked;
+  bool was_hovered;
   uint8_t type;
 
   uintptr_t private;
 
   int (*f_click_func) (struct button_component* this);
 } button_component_t;
+
+int button_click(button_component_t* btn);
 
 /*
  * Private structure of a tab button

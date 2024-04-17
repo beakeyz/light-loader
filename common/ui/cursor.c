@@ -1,9 +1,8 @@
-#include "file.h"
 #include "gfx.h"
 #include "heap.h"
 #include "image.h"
-#include "memory.h"
 #include <stdio.h>
+#include <memory.h>
 #include <ui/cursor.h>
 
 #define DEFAULT_CURSOR_WIDTH 16
@@ -44,16 +43,15 @@ init_cursor(light_gfx_t* gfx)
   gfx->flags |= GFX_FLAG_SHOULD_DRAW_CURSOR;
 }
 
-void 
-update_cursor_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y)
+inline void 
+update_cursor_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t clr)
 {
   if (!cursor_backbuffer)
     return;
 
   /* If this pixel is contained in the buffer */
-  if (x >= old_x && x < old_x + DEFAULT_CURSOR_WIDTH && y >= old_y && y < old_y + DEFAULT_CURSOR_HEIGHT) {
-    cursor_backbuffer[(y - old_y) * DEFAULT_CURSOR_WIDTH + (x - old_x)] = gfx_get_pixel(gfx, x, y);
-  }
+  if (x >= old_x && x < old_x + DEFAULT_CURSOR_WIDTH && y >= old_y && y < old_y + DEFAULT_CURSOR_HEIGHT)
+    cursor_backbuffer[(y - old_y) * DEFAULT_CURSOR_WIDTH + (x - old_x)] = clr;
 }
 
 void 
@@ -64,13 +62,8 @@ draw_cursor(light_gfx_t* gfx, uint32_t x, uint32_t y)
 
   uint64_t cache_idx = 0;
 
-  if (!has_cache)
-    goto do_redraw;
-
-  gfx_draw_rect_img(gfx, old_x, old_y, DEFAULT_CURSOR_WIDTH, DEFAULT_CURSOR_HEIGHT, cursor_backbuffer);
-
-do_redraw:
-  cache_idx = 0;
+  if (has_cache)
+    gfx_draw_rect_img(gfx, old_x, old_y, DEFAULT_CURSOR_WIDTH, DEFAULT_CURSOR_HEIGHT, cursor_backbuffer);
 
   /* Cache the pixels on this location */
   for (uint32_t i = 0; i < DEFAULT_CURSOR_HEIGHT; i++) {

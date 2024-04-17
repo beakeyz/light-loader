@@ -106,7 +106,7 @@ init_framebuffer()
   }
 
   /* Make sure to release the handle buffer */
-  heap_free(handle_list);
+  efi_deallocate(handle_list, handlelist_size);
 
   /* FIXME: might be UGA :sigh: */
   if (!gop_handle)

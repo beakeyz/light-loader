@@ -3,24 +3,39 @@
 #include "image.h"
 #include "mouse.h"
 #include "ui/component.h"
-#include <stdio.h>
 #include <ui/button.h>
 #include <heap.h>
 #include <memory.h>
+#include <stddef.h>
 
 static bool 
 btn_should_update(light_component_t* component)
 {
+  bool hovered;
   button_component_t* btn = component->private;
+
+  if (component->should_update)
+    return true;
+
+  hovered = component_is_hovered(component);
+
+  /* Hovering currently */
+  if (hovered)
+    btn->was_hovered = true;
+  /* Not hovering, but did hover previous update */
+  else if (btn->was_hovered)
+    return true;
+  else
+    return false;
 
   /* Make sure this button is clickable lmao */
   if (!btn->f_click_func)
-    return true;
+    return false;
 
-  if (component_is_hovered(component) && is_lmb_clicked(*component->mouse_buffer) && !btn->is_clicked) {
+  if ((is_lmb_clicked(*component->mouse_buffer) || is_rmb_clicked(*component->mouse_buffer)) && !btn->is_clicked) {
     btn->is_clicked = true;
-    btn->f_click_func(btn);
-  } else if (!is_lmb_clicked(*component->mouse_buffer)){
+    button_click(btn);
+  } else if (!is_lmb_clicked(*component->mouse_buffer) && !is_rmb_clicked(*component->mouse_buffer)){
     btn->is_clicked = false;
   }
 
@@ -43,6 +58,14 @@ create_button(light_component_t** link, char* label, uint32_t x, uint32_t y, uin
   parent->private = btn;
 
   return btn;
+}
+
+int button_click(button_component_t* btn)
+{
+  if (!btn || !btn->f_click_func)
+    return -1;
+
+  return btn->f_click_func(btn);
 }
 
 static int

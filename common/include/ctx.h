@@ -55,6 +55,8 @@ typedef struct light_ctx {
   
   /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
   int (*f_fw_exit)();
+  int (*f_shutdown)();
+  int (*f_get_random_num)(uint8_t* b_out, uint32_t b_len);
 
   /* Mmap, syspointers, ect. */
   int (*f_gather_sys_info)();

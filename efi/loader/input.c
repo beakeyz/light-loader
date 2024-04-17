@@ -47,6 +47,7 @@ efi_init_keyboard()
 
   text_in_protocol = ST->ConIn;
 
+  efi_deallocate(handles, size);
   return;
 
   // FIXME: this fucks us on real hw?
@@ -109,7 +110,7 @@ efi_has_mouse()
     }
   }
 
-  heap_free(handles);
+  efi_deallocate(handles, size);
   handles = NULL;
 
   handle_count = locate_handle_with_buffer(ByProtocol, abs_pointer_guid, &size, &handles);
@@ -130,10 +131,12 @@ efi_has_mouse()
     error = abs_pointer_protocol->Reset(abs_pointer_protocol, true);
 
     if (error == EFI_SUCCESS) {
+      efi_deallocate(handles, size);
       return true;
     }
   }
   
+  efi_deallocate(handles, size);
   return false;
 }
 

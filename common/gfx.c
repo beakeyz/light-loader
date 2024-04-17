@@ -12,7 +12,9 @@
 #include "ui/image.h"
 #include "ui/input_box.h"
 #include "ui/screens/home.h"
+#include "ui/screens/info.h"
 #include "ui/screens/install.h"
+#include "ui/screens/minesweeper.h"
 #include "ui/screens/options.h"
 #include <gfx.h>
 #include <memory.h>
@@ -33,18 +35,24 @@ static light_component_t* current_selected_inputbox;
 #define SCREEN_HOME_IDX 0
 #define SCREEN_OPTIONS_IDX 1
 #define SCREEN_INSTALL_IDX 2
+#define SCREEN_INFO_IDX 3
+#define SCREEN_MINESWEEPER_IDX 4
 
 /* The different components that can be mounted as screenroot */
 static light_component_t* screens[] = {
   [SCREEN_HOME_IDX] = nullptr,
   [SCREEN_OPTIONS_IDX] = nullptr,
   [SCREEN_INSTALL_IDX] = nullptr,
+  [SCREEN_INFO_IDX] = nullptr,
+  [SCREEN_MINESWEEPER_IDX] = nullptr,
 };
 
 static char* screen_labels[] = {
   [SCREEN_HOME_IDX] = "res/home.bmp",
   [SCREEN_OPTIONS_IDX] = "res/opt.bmp",
-  [SCREEN_INSTALL_IDX] = "res/instl.bmp"
+  [SCREEN_INSTALL_IDX] = "res/instl.bmp",
+  [SCREEN_INFO_IDX] = "res/info.bmp",
+  [SCREEN_MINESWEEPER_IDX] = "res/mswpr.bmp"
 };
 
 static const size_t screens_count = sizeof screens / sizeof screens[0];
@@ -137,64 +145,97 @@ gfx_draw_rect(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32
   gfx_draw_rect_raw(gfx, _x, _y, width, height, trf);
 }
 
+static inline volatile uint32_t* 
+_gfx_get_draw_addr(light_gfx_t* gfx, uint32_t x, uint32_t y, bool back)
+{
+  return (volatile uint32_t*)((uintptr_t)(back ? gfx->back_fb : gfx->phys_addr) + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t));
+}
+
+
 void 
 gfx_draw_rect_raw(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, uint32_t clr)
 {
-  uint32_t x;
-  uint32_t y;
+  uint32_t x, y;
+  uint32_t draw_offset;
+  uint32_t gfx_width, gfx_height;
+  volatile uint32_t* draw_addr;
+  bool write_to_backbuf, drawing_cursor;
+
+  gfx_width = gfx->width;
+  gfx_height = gfx->height;
+
+  write_to_backbuf = gfx->back_fb && gfx->ctx->has_fw;
+  drawing_cursor = gfx_is_drawing_cursor(gfx);
+
+  x = _x;
+  y = _y;
+  draw_offset = (gfx->bpp / 8);
+  draw_addr = _gfx_get_draw_addr(gfx, x, y, write_to_backbuf);
 
   for (uint32_t i = 0; i < height; i++) {
     for (uint32_t j = 0; j < width; j++) {
-      
-      x = _x + j;
-      y = _y + i;
 
-      if (x >= gfx->width || y >= gfx->height)
-        return;
+      if (x >= gfx_width)
+        goto cycle;
 
-      if (!gfx->back_fb || !gfx->ctx->has_fw) {
-        /* Direct access */
-        *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-      } else {
-        *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-      }
+      *draw_addr = clr;
 
       /* When we are not drawing the cursor, we should look for any pixel updates */
-      if (!gfx_is_drawing_cursor(gfx))
-        update_cursor_pixel(gfx, x, y);
+      if (!drawing_cursor)
+        update_cursor_pixel(gfx, x, y, clr);
+
+cycle:
+      draw_addr++;
+      x++;
     }
+    if (y++ >= gfx_height)
+      break;
+    x = _x;
+    draw_addr = _gfx_get_draw_addr(gfx, x, y, write_to_backbuf);
   }
 }
 
 void 
 gfx_draw_rect_img(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t width, uint32_t height, uint32_t* clrs)
 {
-  uint32_t x;
-  uint32_t y;
-  uint32_t clr;
+  uint32_t x, y;
+  uint32_t draw_offset;
+  uint32_t gfx_width, gfx_height;
+  volatile uint32_t* draw_addr;
+  bool write_to_backbuf, drawing_cursor;
+
+  gfx_width = gfx->width;
+  gfx_height = gfx->height;
+
+  write_to_backbuf = gfx->back_fb && gfx->ctx->has_fw;
+  drawing_cursor = gfx_is_drawing_cursor(gfx);
+
+  x = _x;
+  y = _y;
+  draw_offset = (gfx->bpp / 8);
+  draw_addr = _gfx_get_draw_addr(gfx, x, y, write_to_backbuf);
 
   for (uint32_t i = 0; i < height; i++) {
     for (uint32_t j = 0; j < width; j++) {
 
-      clr = clrs[i * height + j];
-      
-      x = _x + j;
-      y = _y + i;
+      if (x >= gfx_width)
+        goto cycle;
 
-      if (x >= gfx->width || y >= gfx->height)
-        return;
-
-      if (!gfx->back_fb || !gfx->ctx->has_fw) {
-        /* Direct access */
-        *(uint32_t volatile*)(gfx->phys_addr + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-      } else {
-        *(uint32_t volatile*)(gfx->back_fb + x * gfx->bpp / 8 + y * gfx->stride * sizeof(uint32_t)) = clr;
-      }
+      *draw_addr = *clrs;
 
       /* When we are not drawing the cursor, we should look for any pixel updates */
-      if (!gfx_is_drawing_cursor(gfx))
-        update_cursor_pixel(gfx, x, y);
+      if (!drawing_cursor)
+        update_cursor_pixel(gfx, x, y, *clrs);
+
+cycle:
+      draw_addr++;
+      clrs++;
+      x++;
     }
+    if (y++ >= gfx_height)
+      break;
+    x = _x;
+    draw_addr = _gfx_get_draw_addr(gfx, x, y, write_to_backbuf);
   }
 }
 
@@ -429,6 +470,14 @@ tab_btn_onclick(button_component_t* c)
   return 0;
 }
 
+static int
+pwr_btn_onclick(button_component_t* c)
+{
+  /* Yeet, if there is a nullpointer thingy here somewhere, the system will go down anyway lmao */
+  c->parent->gfx->ctx->f_shutdown();
+  return 0;
+}
+
 static light_component_t*
 __next_btn(light_component_t* start)
 {
@@ -521,10 +570,10 @@ static void gfx_handle_keypress(char pressed_char)
       {
         button_component_t* current_selected_btn_cmp = NULL;
 
-        if (current_selected_btn && current_selected_btn->private) {
+        if (current_selected_btn && current_selected_btn->type == COMPONENT_TYPE_BUTTON && current_selected_btn->private) {
           current_selected_btn_cmp = current_selected_btn->private;
 
-          current_selected_btn_cmp->f_click_func(current_selected_btn_cmp);
+          button_click(current_selected_btn_cmp);
         }
         break;
       }
@@ -550,6 +599,20 @@ gfx_reset_btn_select()
 }
 
 /*!
+ * @brief: 'stdout' redirection function
+ *
+ * When we're in GFX context, we're able to have our own logging. We do this in the form of a simple dialog overlay
+ * box, which acts independant from the actual GFX context. When a printf is called, it's content will be directly 
+ * put onto the screen, without it needing to wait for a GFX redraw (Although a redraw will cause the dialog box to
+ * be erased).
+ */
+static int
+__gfx_printf(char* fmt, ...)
+{
+  return 0;
+}
+
+/*!
  * @brief Main bootloader frontend loop
  *
  * Nothing to add here...
@@ -565,6 +628,8 @@ gfx_enter_frontend()
 
   current_selected_btn = nullptr;
   current_selected_inputbox = nullptr;
+
+  //ctx->f_printf = __gfx_printf;
 
   gfx_clear_screen(&light_gfx);
 
@@ -627,6 +692,8 @@ gfx_enter_frontend()
     create_tab_button(&root_component, screen_labels[i], x_offset, 3, btn_width, 36, tab_btn_onclick, i);
   }
 
+  create_tab_button(&root_component, "res/pwrbtn.bmp", light_gfx.width - 39, 3, 36, 36, pwr_btn_onclick, NULL);
+
   /* Create a box for the home screen */
   construct_homescreen(&screens[SCREEN_HOME_IDX], &light_gfx);
 
@@ -635,6 +702,12 @@ gfx_enter_frontend()
 
   /* Create a box for the install screen */
   construct_installscreen(&screens[SCREEN_INSTALL_IDX], &light_gfx);
+
+  /* Create a box for the info screen */
+  construct_infoscreen(&screens[SCREEN_INFO_IDX], &light_gfx);
+
+  /* Create a screen for minesweeper */
+  construct_minesweeper_screen(&screens[SCREEN_MINESWEEPER_IDX], &light_gfx);
 
   /*
    * Create the screen link, which never gets rendered, but simply acts as a connector for the screens to 

@@ -3,7 +3,7 @@
 #include "gfx.h"
 #include "heap.h"
 #include <memory.h>
-#include <stdio.h>
+#include <stddef.h>
 
 int default_box_draw(light_component_t* comp);
 int default_label_draw(light_component_t* comp);
@@ -136,7 +136,7 @@ void
 update_component(light_component_t* component, light_key_t key, light_mousepos_t mouse)
 {
   /* Update the component */
-  component->should_update = component->f_should_update ? component->f_should_update(component) : true;
+  component->should_update = ((component->f_should_update != nullptr) ? component->f_should_update(component) : true);
 }
 
 void

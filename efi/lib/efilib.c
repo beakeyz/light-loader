@@ -1,7 +1,6 @@
 #include "efiapi.h"
 #include "efidef.h"
 #include "efierr.h"
-#include "heap.h"
 #include "stddef.h"
 #include <efilib.h>
 
@@ -9,6 +8,9 @@ EFI_SYSTEM_TABLE         *ST;
 EFI_BOOT_SERVICES        *BS;
 EFI_RUNTIME_SERVICES     *RT;
 EFI_HANDLE               IH;
+
+/* Let's hope that's enough */
+EFI_HANDLE dummy_buffer[256];
 
 size_t
 locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* size, EFI_HANDLE** handle_list)
@@ -18,21 +20,19 @@ locate_handle_with_buffer(EFI_LOCATE_SEARCH_TYPE type, EFI_GUID guid, size_t* si
   if (!handle_list || !size)
     return 0;
 
-  /* NOTE: we use (void*)1 for the buffer here to make qemu happy */
-  status = BS->LocateHandle(type, &guid, NULL, size, (void*)1);
+  status = BS->LocateHandle(type, &guid, NULL, size, (void*)dummy_buffer);
 
-  *handle_list = heap_allocate(*size);
+  *handle_list = efi_allocate(*size);
 
   if (!(*handle_list))
     return 0;
-
+    
   status = BS->LocateHandle(type, &guid, NULL, size, *handle_list);
 
-  if (EFI_ERROR(status))
-    heap_free(*handle_list);
-
-  if (EFI_ERROR(status))
+  if (EFI_ERROR(status)) {
+    efi_deallocate(*handle_list, *size);
     return 0;
+  }
 
   return (*size / sizeof(EFI_HANDLE));
 }

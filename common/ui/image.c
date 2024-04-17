@@ -1,6 +1,6 @@
 #include "image.h"
 #include "ui/component.h"
-#include <stdio.h>
+#include <stddef.h>
 #include <ui/image.h>
 #include <heap.h>
 #include <memory.h>
