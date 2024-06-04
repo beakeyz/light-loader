@@ -47,6 +47,7 @@ typedef struct light_fs {
   
   /* Open an existing filesystem object */
   struct light_file* (*f_open)(struct light_fs* fs, char* path);
+  struct light_file* (*f_open_idx)(struct light_fs* fs, char* path, uintptr_t idx);
   /* Create the path specified inside the filesystem */
   int (*f_create_path)(struct light_fs* fs, const char* path);
   /* Remove a path inside the filesystem */

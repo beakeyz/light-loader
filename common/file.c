@@ -38,6 +38,16 @@ light_file_t* fopen(char* path)
   return rootdevice->filesystem->f_open(rootdevice->filesystem, path);
 }
 
+light_file_t* fopen_idx(char* path, uint64_t idx)
+{
+  disk_dev_t* rootdevice = get_bootdevice();
+
+  if (!rootdevice || !rootdevice->filesystem || !rootdevice->filesystem->f_open_idx)
+    return nullptr;
+
+  return rootdevice->filesystem->f_open_idx(rootdevice->filesystem, path, idx);
+}
+
 int fcreate(const char* path)
 {
   disk_dev_t* rootdevice = get_bootdevice();

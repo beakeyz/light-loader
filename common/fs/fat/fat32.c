@@ -670,6 +670,87 @@ fail_dealloc_cchain:
   return error;
 }
 
+
+static int 
+__fat32_open_dir_entry_idx(light_fs_t* fs, fat_dir_entry_t* current, fat_dir_entry_t* out, uintptr_t idx, uint32_t* offset)
+{
+  int error;
+  uint32_t cluster_num;
+
+  size_t dir_entries_count;
+  size_t clusters_size;
+  fat_dir_entry_t* dir_entries;
+
+  fat_private_t* p;
+  light_file_t tmp = { 0 };
+  fat_file_t tmp_ffile = { 0 };
+
+  if (!out)
+    return -1;
+
+  /* Make sure we open a directory, not a file */
+  if ((current->dir_attr & FAT_ATTR_DIRECTORY) == 0)
+    return -2;
+
+  p = fs->private;
+  cluster_num = current->dir_frst_cluster_lo | ((uint32_t)current->dir_frst_cluster_hi << 16);
+  tmp.private = &tmp_ffile;
+
+  error = __fat32_cache_cluster_chain(fs, &tmp, cluster_num);
+
+  /* Dir entries can't have a chain length of zero here lol */
+  if (error || !tmp_ffile.cluster_chain_length)
+    goto fail_dealloc_cchain;
+
+  clusters_size = tmp_ffile.cluster_chain_length * p->cluster_size;
+  dir_entries_count = clusters_size / sizeof(fat_dir_entry_t);
+
+  dir_entries = heap_allocate(clusters_size);
+
+  error = __fat32_load_clusters(fs, dir_entries, &tmp_ffile, 0, clusters_size);
+
+  if (error)
+    goto fail_dealloc_dir_entries;
+
+  /* Loop over all the directory entries and check if any paths match ours */
+  for (uint32_t i = 0; i < dir_entries_count; i++) {
+    fat_dir_entry_t entry = dir_entries[i];
+
+    /* Space kinda cringe */
+    if (entry.dir_name[0] == ' ')
+      continue;
+
+    /* End */
+    if (entry.dir_name[0] == 0x00) {
+      error = -3;
+      break;
+    }
+
+    if (entry.dir_attr == FAT_ATTR_LONG_NAME) {
+      /* TODO: support
+       */
+      error = -4;
+      continue;
+    } else {
+
+      /* This our file/directory? */
+      if (idx-- == 0) {
+        *out = entry;
+        if (offset)
+          *offset = i * sizeof(fat_dir_entry_t);
+        error = 0;
+        break;
+      }
+    }
+  }
+
+fail_dealloc_dir_entries:
+  heap_free(dir_entries);
+fail_dealloc_cchain:
+  heap_free(tmp_ffile.cluster_chain);
+  return error;
+}
+
 /*!
  * @brief: Write to a file in a FAT filesystem
  */
@@ -944,6 +1025,102 @@ fail_and_deallocate:
   return nullptr;
 }
 
+light_file_t*
+fat32_open_idx(light_fs_t* fs, char* path, uintptr_t idx)
+{
+  /* Include 0x00 byte */
+  int error;
+  const size_t path_size = strlen(path) + 1;
+
+  if (path_size >= FAT32_MAX_FILENAME_LENGTH)
+    return nullptr;
+
+  char path_buffer[path_size];
+  fat_private_t* p;
+  light_file_t* file = heap_allocate(sizeof(light_file_t));
+  fat_file_t* ffile = heap_allocate(sizeof(fat_file_t));
+
+  memset(file, 0, sizeof(*file));
+  memset(ffile, 0, sizeof(*ffile));
+
+  memcpy(path_buffer, path, path_size);
+
+  file->private = ffile;
+  file->parent_fs = fs;
+  p = fs->private;
+
+  uintptr_t current_idx = 0;
+  fat_dir_entry_t current = p->root_entry;
+
+  /* Do opening lmao */
+
+  for (uintptr_t i = 0; i < path_size; i++) {
+
+    /* Stop either at the end, or at any '/' char */
+    if (path_buffer[i] != '/' && path_buffer[i] != '\0')
+      continue;
+
+    /* Place a null-byte */
+    path_buffer[i] = '\0';
+
+    ffile->direntry_cluster = __fat32_dir_entry_get_start_cluster(&current); 
+
+    /* NOTE: Offset is the offset from the first cluster of a dir entry */
+    error = __fat32_open_dir_entry(fs, &current, &current, &path_buffer[current_idx], &ffile->direntry_cluster_offset);
+
+    if (error)
+      goto fail_and_deallocate;
+
+    ffile->direntry_cluster += (ffile->direntry_cluster_offset) / p->cluster_size;
+    ffile->direntry_cluster_offset %= p->cluster_size;
+
+    /* Set the current index if we have successfuly 'switched' directories */
+    current_idx = i + 1;
+
+    /*
+     * Place back the slash
+     */
+    path_buffer[i] = '/';
+  }
+
+  /* Set thing */
+  ffile->direntry_cluster = __fat32_dir_entry_get_start_cluster(&current); 
+
+  error = __fat32_open_dir_entry_idx(fs, &current, &current, idx, &ffile->direntry_cluster_offset);
+
+  if (error)
+    goto fail_and_deallocate;
+
+  ffile->direntry_cluster += (ffile->direntry_cluster_offset) / p->cluster_size;
+  ffile->direntry_cluster_offset %= p->cluster_size;
+
+  /*
+   * If we found our file (its not a directory) we can populate the file object and return it
+   */
+  if ((current.dir_attr & (FAT_ATTR_DIRECTORY|FAT_ATTR_VOLUME_ID)) == FAT_ATTR_DIRECTORY)
+    goto fail_and_deallocate;
+
+  /* Make sure the file knows about its cluster chain */
+  error = __fat32_cache_cluster_chain(fs, file, __fat32_dir_entry_get_start_cluster(&current));
+
+  /* Only if we failed to read a file with bytes lmao */
+  if (error && current.filesize_bytes)
+    goto fail_and_deallocate;
+
+  file->filesize = current.filesize_bytes;
+  file->f_read = __fat32_file_read;
+  file->f_readall = __fat32_file_readall;
+  file->f_write = __fat32_file_write;
+  file->f_close = __fat32_file_close;
+
+  return file;
+
+fail_and_deallocate:
+  heap_free(file);
+  heap_free(ffile);
+  return nullptr;
+}
+
 static int
 fat32_create_path(light_fs_t* fs, const char* path)
 {
@@ -1209,6 +1386,7 @@ light_fs_t fat32_fs =
   .fs_type = FS_TYPE_FAT32,
   .f_probe = fat32_probe,
   .f_open = fat32_open,
+  .f_open_idx = fat32_open_idx,
   .f_close = fat32_close,
   .f_create_path = fat32_create_path,
   .f_install = fat32_install,

@@ -4,6 +4,7 @@
 #include "stddef.h"
 #include "ui/button.h"
 #include "ui/input_box.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <font.h>
 #include <ui/screens/options.h>
@@ -117,6 +118,8 @@ int open_test_onclick(button_component_t* comp)
   return 0;
 }
 
+bool test;
+
 /*
  * Options we need to implement:
  *  - resolution
@@ -149,6 +152,22 @@ construct_optionsscreen(light_component_t** root, light_gfx_t* gfx)
 
     }
   }
+
+  uint64_t idx;
+  light_file_t* file;
+
+  idx = 0;
+
+  do {
+    file = fopen_idx("/", idx++);
+
+    if (!file)
+      continue;
+
+    create_switch(root, "file", 524, idx * 24, 128, 22, &test);
+
+    file->f_close(file);
+  } while (file);
 
   create_button(root, "Test create", 4, gfx->height - 24, 128, 20, test_onclick, nullptr);
   create_button(root, "Test open", 4, gfx->height - (24 * 2 + 4), 128, 20, open_test_onclick, nullptr);
