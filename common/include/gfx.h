@@ -17,16 +17,17 @@ struct light_component;
  * Simple union to generefy the way to represent colors in a framebuffer
  */
 typedef union light_color {
-  struct {
-    uint8_t alpha;
-    uint8_t blue;
-    uint8_t green;
-    uint8_t red;
-  };
-  uint32_t clr;
+    struct {
+        uint8_t alpha;
+        uint8_t blue;
+        uint8_t green;
+        uint8_t red;
+    };
+    uint32_t clr;
 } light_color_t;
 
-#define CLR(rgba) (light_color_t) { .clr = (uint32_t)(rgba) }
+#define CLR(rgba) \
+    (light_color_t) { .clr = (uint32_t)(rgba) }
 
 /* Default color variables */
 extern light_color_t WHITE;
@@ -53,7 +54,6 @@ extern light_color_t DARK_GREEN;
 extern light_color_t RED;
 extern light_color_t DARK_RED;
 
-
 /* TODO: implement color blending opperations to make use of the alpha chanel */
 int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);
 
@@ -68,25 +68,25 @@ int lclr_blend(light_color_t fg, light_color_t bg, light_color_t* out);
 #define GFX_FLAG_SHOULD_EXIT_FRONTEND (0x0008)
 
 typedef struct light_gfx {
-  uintptr_t phys_addr;
-  uintptr_t size;
-  uint32_t width, height, stride;
-  uint32_t red_mask, green_mask, blue_mask, alpha_mask;
-  uint8_t bpp;
-  uint8_t type;
-  uint16_t flags;
+    uintptr_t phys_addr;
+    uintptr_t size;
+    uint32_t width, height, stride;
+    uint32_t red_mask, green_mask, blue_mask, alpha_mask;
+    uint8_t bpp;
+    uint8_t type;
+    uint16_t flags;
 
-  void* priv;
+    void* priv;
 
-  struct light_font* current_font;
-  struct light_ctx* ctx;
+    struct light_font* current_font;
+    struct light_ctx* ctx;
 
-  /* Yay, doublebuffering 0.0 */
-  uintptr_t back_fb;
-  size_t back_fb_pages;
+    /* Yay, doublebuffering 0.0 */
+    uintptr_t back_fb;
+    size_t back_fb_pages;
 
-  struct light_image* _check_image;
-  struct light_image* _checkbox_image;
+    struct light_image* _check_image;
+    struct light_image* _checkbox_image;
 
 } light_gfx_t;
 
@@ -97,6 +97,7 @@ uint32_t gfx_get_pixel(light_gfx_t* gfx, uint32_t x, uint32_t y);
 light_color_t gfx_transform_pixel(light_gfx_t* gfx, uint32_t clr);
 
 void gfx_clear_screen(light_gfx_t* gfx);
+void gfx_clear_screen_splash(light_gfx_t* gfx);
 
 void gfx_draw_char(light_gfx_t* gfx, char c, uint32_t x, uint32_t y, light_color_t clr);
 void gfx_draw_str(light_gfx_t* gfx, char* str, uint32_t x, uint32_t y, light_color_t clr);
@@ -120,24 +121,24 @@ void gfx_reset_btn_select();
 
 static inline bool gfx_is_drawing_cursor(light_gfx_t* gfx)
 {
-  return ((gfx->flags & GFX_FLAG_DRAWING_CURSOR) == GFX_FLAG_DRAWING_CURSOR);
+    return ((gfx->flags & GFX_FLAG_DRAWING_CURSOR) == GFX_FLAG_DRAWING_CURSOR);
 }
 
 static inline void gfx_set_drawing_cursor(light_gfx_t* gfx)
 {
-  gfx->flags |= GFX_FLAG_DRAWING_CURSOR;
+    gfx->flags |= GFX_FLAG_DRAWING_CURSOR;
 }
 
 static inline void gfx_clear_drawing_cursor(light_gfx_t* gfx)
 {
-  gfx->flags &= ~GFX_FLAG_DRAWING_CURSOR;
+    gfx->flags &= ~GFX_FLAG_DRAWING_CURSOR;
 }
 
 typedef enum gfx_logo_pos {
-  LOGO_POS_NONE = 0,
-  LOGO_POS_CENTER = 1,
-  LOGO_POS_TOP_BAR_RIGHT,
-  LOGO_POS_BOTTOM_BAR_RIGHT,
+    LOGO_POS_NONE = 0,
+    LOGO_POS_CENTER = 1,
+    LOGO_POS_TOP_BAR_RIGHT,
+    LOGO_POS_BOTTOM_BAR_RIGHT,
 } gfx_logo_pos_t;
 
 void gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t pos);
@@ -146,16 +147,16 @@ void gfx_display_logo(light_gfx_t* gfx, uint32_t x, uint32_t y, gfx_logo_pos_t p
  * When we exit the frontend, these are the things we can do
  */
 typedef enum gfx_frontend_result {
-  /* We are probably in a good install. Just boot from this disk */
-  BOOT_MULTIBOOT = 0,
-  /* Just clean and reboot (probably an error) */
-  REBOOT,
-  /* We are not sure about the install, verify files */
-  VERIFY_INSTALL,
-  /* We want to install on a different disk */
-  LAUNCH_INSTALLER,
-  /* Launch the autoupdater to check for updates */
-  LAUNCH_AUTOUPDATES,
+    /* We are probably in a good install. Just boot from this disk */
+    BOOT_MULTIBOOT = 0,
+    /* Just clean and reboot (probably an error) */
+    REBOOT,
+    /* We are not sure about the install, verify files */
+    VERIFY_INSTALL,
+    /* We want to install on a different disk */
+    LAUNCH_INSTALLER,
+    /* Launch the autoupdater to check for updates */
+    LAUNCH_AUTOUPDATES,
 } gfx_frontend_result_t;
 
 gfx_frontend_result_t gfx_enter_frontend();
