@@ -2,7 +2,7 @@
 #define __LIGHLOADER_CTX__
 
 /*
- * The bootloader context will act as a general way to manage any 
+ * The bootloader context will act as a general way to manage any
  * bootloader stuff that might be platform-specific, like any exit or
  * system teardown in preperation for controltransfer to the kernel
  */
@@ -11,8 +11,8 @@
 #include "key.h"
 #include "mouse.h"
 #include "rsdp.h"
-#include <stdint.h>
 #include <boot/boot.h>
+#include <stdint.h>
 
 struct light_mmap_entry;
 
@@ -20,61 +20,64 @@ struct light_mmap_entry;
 
 typedef struct light_ctx {
 
-  /* The start and end address of the loader in RAM */
-  uintptr_t m_loader_image_start;
-  uintptr_t m_loader_image_end;
+    /* The start and end address of the loader in RAM */
+    uintptr_t m_loader_image_start;
+    uintptr_t m_loader_image_end;
 
-  /* Private platform specific stuff */
-  void* private;
+    /* Private platform specific stuff */
+    void* private;
 
-  /* Do we still have firmware support? (Only really applicable for EFI) */
-  bool has_fw;
-  /* Has the user confirmed that they want to install to disk permanently? */
-  bool install_confirmed;
+    /* Do we still have firmware support? (Only really applicable for EFI) */
+    bool has_fw;
+    /* Has the user confirmed that they want to install to disk permanently? */
+    bool install_confirmed;
 
-  /* Put a reference to the memory map here */
-  struct light_mmap_entry* mmap;
-  size_t mmap_entries;
+    /* Put a reference to the memory map here */
+    struct light_mmap_entry* mmap;
+    size_t mmap_entries;
 
-  /* Either the rsdp or the xsdp */
-  system_ptrs_t sys_ptrs;
+    /* Either the rsdp or the xsdp */
+    system_ptrs_t sys_ptrs;
 
-  /* How should we boot */
-  light_boot_config_t light_bcfg;
+    /* How should we boot */
+    light_boot_config_t light_bcfg;
 
-  /*
-   * Put a reference to the disk structure that we where loaded 
-   * from (and thus where the kernel is still chilling) 
-   * (EFI gives us the handle to a partition, so TODO rename this variable)
-   */
-  disk_dev_t* disk_handle;
+    /*
+     * Put a reference to the disk structure that we where loaded
+     * from (and thus where the kernel is still chilling)
+     * (EFI gives us the handle to a partition, so TODO rename this variable)
+     */
+    disk_dev_t* disk_handle;
 
-  /* Array of all the 'disk' drives we found on the system */
-  disk_dev_t** present_volume_list;
-  uint32_t present_volume_count;
-  
-  /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
-  int (*f_fw_exit)();
-  int (*f_shutdown)();
-  int (*f_get_random_num)(uint8_t* b_out, uint32_t b_len);
+    /* Array of all the 'disk' drives we found on the system */
+    disk_dev_t** present_volume_list;
+    uint32_t present_volume_count;
 
-  /* Mmap, syspointers, ect. */
-  int (*f_gather_sys_info)();
+    /* Exit the bootloader (Deallocate any shit, prepare final mmap, ect.) in preperation for transfer of control */
+    int (*f_fw_exit)();
+    int (*f_shutdown)();
+    int (*f_get_random_num)(uint8_t* b_out, uint32_t b_len);
 
-  /* General memory allocation for data */
-  void* (*f_allocate)(size_t size);
-  void (*f_deallcoate)(void* addr, size_t size);
+    /* Mmap, syspointers, ect. */
+    int (*f_gather_sys_info)();
 
-  int (*f_printf)(char* fmt, ...);
+    /* General memory allocation for data */
+    void* (*f_allocate)(size_t size);
+    void (*f_deallcoate)(void* addr, size_t size);
 
-  bool (*f_has_keyboard)();
-  bool (*f_has_mouse)();
+    int (*f_printf)(char* fmt, ...);
 
-  void (*f_init_keyboard)();
-  void (*f_init_mouse)();
+    bool (*f_has_keyboard)();
+    bool (*f_has_mouse)();
 
-  int (*f_get_keypress)(light_key_t* key);
-  int (*f_get_mousepos)(light_mousepos_t* pos);
+    void (*f_reset_keyboard)();
+    void (*f_reset_mouse)();
+
+    void (*f_init_keyboard)();
+    void (*f_init_mouse)();
+
+    int (*f_get_keypress)(light_key_t* key);
+    int (*f_get_mousepos)(light_mousepos_t* pos);
 
 } light_ctx_t;
 

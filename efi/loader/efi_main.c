@@ -25,6 +25,8 @@ efi_ctx_t* efi_ctx;
 
 extern void efi_init_keyboard();
 extern void efi_init_mouse();
+extern void efi_reset_keyboard();
+extern void efi_reset_mouse();
 extern bool efi_has_keyboard();
 extern bool efi_has_mouse();
 extern int efi_get_mousepos(light_mousepos_t* pos);
@@ -132,6 +134,9 @@ static void efi_setup_ctx(light_ctx_t* ctx)
     ctx->f_init_keyboard = efi_init_keyboard;
     ctx->f_has_keyboard = efi_has_keyboard;
 
+    ctx->f_reset_mouse = efi_reset_mouse;
+    ctx->f_reset_keyboard = efi_reset_keyboard;
+
     ctx->f_get_keypress = efi_get_keypress;
     ctx->f_get_mousepos = efi_get_mousepos;
 
@@ -236,8 +241,8 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
     init_efi_bootdisk();
 
     /* Enter the frontend for user interaction */
-    // result = gfx_enter_frontend();
-    result = BOOT_MULTIBOOT;
+    result = gfx_enter_frontend();
+    // result = BOOT_MULTIBOOT;
 
     /* TODO */
     switch (result) {

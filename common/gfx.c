@@ -337,6 +337,17 @@ void gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, 
     }
 }
 
+int gfx_get_pixels(light_gfx_t* gfx, void* buff, uint32_t width, uint32_t height)
+{
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = gfx->priv;
+
+    if (!gfx->back_fb || !gfx->ctx->has_fw)
+        return -1;
+
+    gop->Blt(gop, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL*)buff, EfiBltVideoToBltBuffer, NULL, NULL, NULL, NULL, width, height, NULL);
+    return 0;
+}
+
 /*!
  * @brief: Switch back and front buffer
  *
@@ -775,6 +786,10 @@ gfx_enter_frontend()
 
     /* Make sure to not update the cursor stuff when we are not in the frontend */
     light_gfx.flags &= ~GFX_FLAG_SHOULD_DRAW_CURSOR;
+
+    /* Reset the input devices */
+    reset_keyboard();
+    reset_mouse();
 
     /* Default option, just boot our kernel */
     return BOOT_MULTIBOOT;

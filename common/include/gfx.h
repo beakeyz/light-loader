@@ -111,6 +111,7 @@ void gfx_draw_circle(light_gfx_t* gfx, uint32_t x, uint32_t y, uint32_t radius, 
 int gfx_printf(char* str, ...);
 int gfx_putchar(char c);
 
+int gfx_get_pixels(light_gfx_t* gfx, void* buff, uint32_t width, uint32_t height);
 int gfx_switch_buffers(light_gfx_t* gfx);
 
 void get_light_gfx(light_gfx_t** gfx);

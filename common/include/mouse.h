@@ -10,11 +10,12 @@
 #define MOUSE_SIDEBTN1 (1 << 4)
 
 typedef struct light_mousepos {
-  int32_t x, y;
-  uint8_t btn_flags;
+    int32_t x, y;
+    uint8_t btn_flags;
 } light_mousepos_t;
 
 void init_mouse();
+void reset_mouse();
 bool has_mouse();
 void reset_mousepos(uint32_t x, uint32_t y, uint32_t x_limit, uint32_t y_limit);
 
@@ -27,12 +28,12 @@ void get_previous_mousepos(light_mousepos_t* pos);
 
 static inline bool is_lmb_clicked(light_mousepos_t mouse)
 {
-  return ((mouse.btn_flags & MOUSE_LEFTBTN) == MOUSE_LEFTBTN);
+    return ((mouse.btn_flags & MOUSE_LEFTBTN) == MOUSE_LEFTBTN);
 }
 
 static inline bool is_rmb_clicked(light_mousepos_t mouse)
 {
-  return ((mouse.btn_flags & MOUSE_RIGHTBTN) == MOUSE_RIGHTBTN);
+    return ((mouse.btn_flags & MOUSE_RIGHTBTN) == MOUSE_RIGHTBTN);
 }
 
 #endif // !__LIGHTLOADER_MOUSE__
