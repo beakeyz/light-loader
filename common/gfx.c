@@ -169,6 +169,8 @@ void gfx_draw_rect_raw(light_gfx_t* gfx, uint32_t _x, uint32_t _y, uint32_t widt
     draw_offset = (gfx->bpp / 8);
     draw_addr = _gfx_get_draw_addr(gfx, x, y, write_to_backbuf);
 
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = gfx->priv;
+
     for (uint32_t i = 0; i < height; i++) {
         for (uint32_t j = 0; j < width; j++) {
 

@@ -266,4 +266,5 @@ clean: ## Remove any object files or binaries from the project
 
 .PHONY: debug
 debug: ## Run lightloader in Qemu
-	@$(EMU) -m 1G -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -serial stdio -device usb-ehci -device usb-kbd -device usb-mouse
+	# @$(EMU) -m 1G -enable-kvm -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -serial stdio -device usb-ehci -device usb-kbd -device usb-mouse
+	@$(EMU) -m 1G -enable-kvm -net none -M q35 -usb $(BIN_OUT)/$(OUT_IMAGE) -bios ./ovmf/OVMF.fd -serial stdio

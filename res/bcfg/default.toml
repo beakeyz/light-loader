@@ -1,0 +1,9 @@
+[boot]
+kernel_image = "aniva.elf"
+kernel_cmd = ''
+rd_image = "rdisk.igz"
+protocol = "multiboot2"
+
+[misc]
+name = "Default"
+desc = "Default aniva boot config"
