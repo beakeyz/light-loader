@@ -41,6 +41,11 @@ typedef struct toml_token {
     struct toml_token* next;
 } toml_token_t;
 
+static inline bool toml_token_istype(toml_token_t* token, enum TOML_TOKEN_TYPE type)
+{
+    return (token && token->type == type);
+}
+
 typedef struct toml_token_cache {
     size_t next_free_idx;
     /* When next_free_idx == MAX_TOML_TOKENS, append a new cache here lol */
@@ -59,14 +64,6 @@ static inline toml_token_t* allocate_token(toml_token_cache_t* cache)
 }
 
 /*
- * Group node which holds all nodes in a certain 'group'
- */
-typedef struct config_group_node {
-    struct config_node* nodes;
-    struct config_group_node* next;
-} config_group_node_t;
-
-/*
  * Single TOML/YAML (idk) node
  */
 typedef struct config_node {
@@ -76,7 +73,9 @@ typedef struct config_node {
         const char* str_value;
         uintptr_t num_value;
         struct config_node* list_value;
-        config_group_node_t* group_value;
+        struct config_node* group_value;
+
+        void* value;
     };
     struct config_node *next, *list_next;
 } config_node_t;
@@ -93,9 +92,9 @@ typedef struct config_file {
     config_node_t* rootnode;
 } config_file_t;
 
-config_file_t* open_config_file(const char* path);
-void close_config_file(config_file_t* file);
+extern config_file_t* open_config_file(const char* path);
+extern void close_config_file(config_file_t* file);
 
-int config_file_get_node(const char* key, config_node_t** pnode);
+extern int config_file_get_node(config_file_t* file, const char* path, config_node_t** pnode);
 
 #endif // !__LIGHTLOADER_CONFIG_LOADER_H__
