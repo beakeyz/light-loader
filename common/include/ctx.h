@@ -41,6 +41,7 @@ typedef struct light_ctx {
 
     /* How should we boot */
     light_boot_config_t light_bcfg;
+    light_boot_config_t default_light_bcfg;
 
     /*
      * Put a reference to the disk structure that we where loaded

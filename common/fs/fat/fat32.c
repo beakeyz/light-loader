@@ -1,5 +1,6 @@
 #include "fs/fat/fat32.h"
 #include "fs.h"
+#include "gfx.h"
 #include <disk.h>
 #include <file.h>
 #include <heap.h>
@@ -1083,13 +1084,16 @@ fat32_open_idx(light_fs_t* fs, char* path, uintptr_t idx)
     /* Set thing */
     ffile->direntry_cluster = __fat32_dir_entry_get_start_cluster(&current);
 
-    error = __fat32_open_dir_entry_idx(fs, &current, &current, idx, &ffile->direntry_cluster_offset);
+    /* Add two in order to skip the ./ and ../ directories */
+    error = __fat32_open_dir_entry_idx(fs, &current, &current, idx + 2, &ffile->direntry_cluster_offset);
 
     if (error)
         goto fail_and_deallocate;
 
     ffile->direntry_cluster += (ffile->direntry_cluster_offset) / p->cluster_size;
     ffile->direntry_cluster_offset %= p->cluster_size;
+
+    gfx_printf(current.dir_name);
 
     /*
      * If we found our file (its not a directory) we can populate the file object and return it

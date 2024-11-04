@@ -1,3 +1,4 @@
+#include "boot/cldr.h"
 #include "boot/multiboot.h"
 #include "ctx.h"
 #include "elf64.h"
@@ -317,10 +318,10 @@ void
     uintptr_t new_ramdisk_loc = NULL;
 
     /* First, make sure we have valid files here */
-    if (!config->kernel_file)
-        config->kernel_file = (char*)default_kernel_path;
-    if (!config->ramdisk_file)
-        config->ramdisk_file = (char*)default_ramdisk_path;
+    if (!config->kernel_image)
+        config->kernel_image = (char*)default_kernel_path;
+    if (!config->ramdisk_image)
+        config->ramdisk_image = (char*)default_ramdisk_path;
 
     /* Get the GFX in preperation for multiboot stuff */
     get_light_gfx(&gfx);
@@ -329,7 +330,7 @@ void
     gfx_clear_screen_splash(gfx);
 
     /* Open the kernel file */
-    kernel_file = fopen(config->kernel_file);
+    kernel_file = fopen(config->kernel_image);
 
     if (!kernel_file)
         panic("Could not find kernel file!");
@@ -364,7 +365,7 @@ void
     if (error)
         panic("Failed to load kernel ELF!");
 
-    ramdisk_file = fopen(config->ramdisk_file);
+    ramdisk_file = fopen(config->ramdisk_image);
 
     if (!ramdisk_file)
         panic("Failed to open kernel ramdisk!");
@@ -562,4 +563,76 @@ void boot_add_kernel_opt(struct light_ctx* ctx, const char* key, const char* val
     /* Add the value */
     _kernel_opts_add_str(cfg->kernel_opts, value, &idx);
     _kernel_opts_add_str(cfg->kernel_opts, "\'", &idx);
+}
+
+static inline LIGHT_BOOT_METHOD_t __get_light_boot_protocol(config_file_t* file)
+{
+    config_node_t* proto_node = nullptr;
+
+    if (config_file_get_node(file, "boot.protocol", &proto_node) || !proto_node)
+        goto default_and_return;
+
+    if (strncmp(proto_node->str_value, "multiboot2", 11) == 0)
+        return LBM_MULTIBOOT2;
+
+    if (strncmp(proto_node->str_value, "multiboot1", 11) == 0)
+        return LBM_MULTIBOOT1;
+
+    if (strncmp(proto_node->str_value, "linux", 6) == 0)
+        return LBM_LINUX;
+
+    if (strncmp(proto_node->str_value, "chain", 6) == 0)
+        return LBM_CHAINLOAD;
+
+default_and_return:
+    return LBM_RAW;
+}
+
+static inline char* __get_light_kernel_opts(config_file_t* file)
+{
+    config_node_t* value_node = nullptr;
+
+    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
+        goto default_and_return;
+
+    return (char*)value_node->str_value;
+default_and_return:
+    return "";
+}
+
+static inline char* __get_light_kernel_image(config_file_t* file)
+{
+    config_node_t* value_node = nullptr;
+
+    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
+        goto default_and_return;
+
+    return (char*)value_node->str_value;
+default_and_return:
+    return (char*)default_kernel_path;
+}
+
+static inline char* __get_light_ramdisk_image(config_file_t* file)
+{
+    config_node_t* value_node = nullptr;
+
+    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
+        goto default_and_return;
+
+    return (char*)value_node->str_value;
+default_and_return:
+    return (char*)default_ramdisk_path;
+}
+
+void boot_config_from_file(light_boot_config_t* config, config_file_t* file)
+{
+    if (!config || !file)
+        return;
+
+    config->cfg_file = file;
+    config->flags = LBOOT_FLAG_HAS_FILE;
+    config->method = __get_light_boot_protocol(file);
+    config->kernel_opts = __get_light_kernel_opts(file);
+    config->kernel_image = __get_light_kernel_image(file);
+    config->ramdisk_image = __get_light_ramdisk_image(file);
 }

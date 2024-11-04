@@ -248,6 +248,7 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table)
     switch (result) {
     case BOOT_MULTIBOOT:
         boot_context_configuration(get_light_ctx());
+        break;
     default:
         break;
     }

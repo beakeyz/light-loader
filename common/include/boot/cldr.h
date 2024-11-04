@@ -93,6 +93,7 @@ typedef struct config_file {
 } config_file_t;
 
 extern config_file_t* open_config_file(const char* path);
+extern config_file_t* open_config_file_idx(const char* path, uint32_t idx);
 extern void close_config_file(config_file_t* file);
 
 int config_file_get_node(config_file_t* file, const char* path, config_node_t** pnode);

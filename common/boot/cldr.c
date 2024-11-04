@@ -151,6 +151,22 @@ static inline config_node_t* create_config_node(const char* key, enum CFG_NODE_T
     return node;
 }
 
+static void destroy_config_node(config_node_t* node)
+{
+    config_node_t* next;
+
+    /* Destroy the children inside a group node */
+    if (node->type == CFG_NODE_TYPE_GROUP) {
+        for (config_node_t* walker = node->group_value; walker; walker = next) {
+            next = walker->next;
+
+            destroy_config_node(walker);
+        }
+    }
+
+free_and_exit:
+    heap_free(node);
+}
 /*!
  * @brief: Link a config node into a group node
  *
@@ -251,21 +267,11 @@ static inline void __parse_config_file(config_file_t* file)
     }
 }
 
-config_file_t* open_config_file(const char* path)
+static inline config_file_t* __init_config_file(light_file_t* file)
 {
-    light_file_t* file;
     config_file_t* ret;
 
-    if (!path)
-        return nullptr;
-
-    /* Make sure the file ends in .toml */
-    if (strncmp(&path[strlen(path) - 4], ".cfg", 4))
-        return nullptr;
-
-    file = fopen((char*)path);
-
-    if (!path)
+    if (!file)
         return nullptr;
 
     ret = heap_allocate(sizeof(*ret));
@@ -297,8 +303,52 @@ config_file_t* open_config_file(const char* path)
     return ret;
 }
 
+/*!
+ * @brief: Open the nth config file from a directory at @path
+ *
+ * TODO: Test this function with garbage files
+ * we should have the right prevention measures to ensure we don't waste time
+ * parsing bullshit files
+ */
+config_file_t* open_config_file_idx(const char* path, uint32_t idx)
+{
+    light_file_t* file;
+
+    if (!path)
+        return nullptr;
+
+    /* Let's just hope this file is a .cfg file *pray* */
+    file = fopen_idx((char*)path, idx);
+
+    return __init_config_file(file);
+}
+
+config_file_t* open_config_file(const char* path)
+{
+    light_file_t* file;
+
+    if (!path)
+        return nullptr;
+
+    /* Make sure the file ends in .toml */
+    if (strncmp(&path[strlen(path) - 4], ".cfg", 4))
+        return nullptr;
+
+    file = fopen((char*)path);
+
+    return __init_config_file(file);
+}
+
 void close_config_file(config_file_t* file)
 {
+    destroy_config_node(file->rootnode);
+
+    /* Close the file */
+    file->file->f_close(file->file);
+
+    /* Free the last buffers */
+    heap_free(file->tok_cache);
+    heap_free(file);
 }
 
 /*!
