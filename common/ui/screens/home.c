@@ -50,8 +50,10 @@ int construct_homescreen(light_component_t** root, light_gfx_t* gfx)
 
     config_node_t* test_node;
 
-    if (config_file_get_node(test, "misc.name", &test_node) == 0)
+    if (config_file_get_node_at(test, "boot", 0, &test_node) == 0)
         gfx_printf(test_node->str_value);
+    else
+        gfx_printf("Could not find that node!");
 
     for (;;) { }
 

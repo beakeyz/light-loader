@@ -85,6 +85,10 @@ static inline void __tokenize_config_file(config_file_t* file)
         case '\n':
             cur_type = TOML_TOKEN_TYPE_NEWLINE;
             break;
+        /* Whitespace chars */
+        case ' ':
+        case '\t':
+            break;
         default:
             if (c_isletter(*c_char)) {
                 /* Find the last char in the sequence */
@@ -143,18 +147,31 @@ static inline config_node_t* create_config_node(const char* key, enum CFG_NODE_T
     node->value = data;
 
     node->next = nullptr;
-    node->list_next = nullptr;
 
     return node;
 }
 
+/*!
+ * @brief: Link a config node into a group node
+ *
+ * Since we don't have any fancy enqueue pointer magic here, just loop over the children until
+ * we find the last one =(
+ */
 static inline void link_config_node(config_node_t** group_ptr, config_node_t* child)
 {
+    config_node_t** walker;
+
     if (!child || !group_ptr)
         return;
 
-    child->next = *group_ptr;
-    *group_ptr = child;
+    walker = group_ptr;
+
+    /* Walk to the last place */
+    while (*walker)
+        walker = &(*walker)->next;
+
+    child->next = nullptr;
+    *walker = child;
 }
 
 /*!
@@ -178,8 +195,7 @@ static inline void __parse_config_file(config_file_t* file)
     file->rootnode = create_config_node("root", CFG_NODE_TYPE_GROUP, nullptr);
 
     /* Loop over all the tokens to construct the node tree */
-    for (toml_token_t* c_token = file->tokens; c_token; c_token = c_token->next) {
-
+    for (toml_token_t* c_token = file->tokens; c_token != nullptr; c_token = c_token->next) {
         switch (c_token->type) {
         case TOML_TOKEN_TYPE_GROUP_START:
             /* This sucks bad */
@@ -207,7 +223,7 @@ static inline void __parse_config_file(config_file_t* file)
             if (!c_token->next->next)
                 return;
 
-            switch (c_token->next->type) {
+            switch (c_token->next->next->type) {
             case TOML_TOKEN_TYPE_STRING:
                 // ident = "str"
                 new_node = create_config_node(c_token->tok, CFG_NODE_TYPE_STRING, (void*)c_token->next->next->tok);
@@ -228,7 +244,7 @@ static inline void __parse_config_file(config_file_t* file)
             break;
         /* Any other token type is invalid lmao */
         default:
-            return;
+            break;
         }
 
         prev_token = c_token;
@@ -281,8 +297,13 @@ config_file_t* open_config_file(const char* path)
     return ret;
 }
 
-void close_config_file(config_file_t* file);
+void close_config_file(config_file_t* file)
+{
+}
 
+/*!
+ * @brief: Grab a node from a parsed config file
+ */
 int config_file_get_node(config_file_t* file, const char* path, config_node_t** pnode)
 {
     config_node_t* cur_node = file->rootnode;
@@ -290,7 +311,7 @@ int config_file_get_node(config_file_t* file, const char* path, config_node_t** 
     const char* cur_path_subentry = path;
     uint32_t path_len;
 
-    if (!pnode)
+    if (!file || !pnode)
         return -1;
 
     /* Root node is always a group node */
@@ -301,20 +322,18 @@ int config_file_get_node(config_file_t* file, const char* path, config_node_t** 
 
     path_len = strlen(path);
 
-    for (uint32_t i = 0; i < path_len; i++) {
+    for (uint32_t i = 0; i < (path_len + 1); i++) {
         char cur_char = path[i];
 
         if (!cur_node || !cur_group_list)
             break;
 
-        if (cur_char != '.')
+        if (cur_char != '\0' && cur_char != '.')
             continue;
 
         /* Grab some info on the current path subentry */
         uint32_t node_name_len = &path[i] - cur_path_subentry;
         const char* node_name = strdup_ex(cur_path_subentry, node_name_len);
-
-        gfx_printf(node_name);
 
         /* Skip any fucking anoying dots */
         while (path[i + 1] == '.')
@@ -336,6 +355,8 @@ int config_file_get_node(config_file_t* file, const char* path, config_node_t** 
                 cur_group_list = cur_node->group_value;
             else
                 cur_group_list = nullptr;
+
+            break;
         }
 
         cur_path_subentry = &path[i + 1];
@@ -349,5 +370,40 @@ int config_file_get_node(config_file_t* file, const char* path, config_node_t** 
     /* Export the node */
     *pnode = cur_node;
 
+    return 0;
+}
+
+/*!
+ * @brief: Gets a config node at index @idx
+ *
+ * @path: Path to a group node. If it does not point to a group node, we're very sad
+ */
+int config_file_get_node_at(config_file_t* file, const char* path, uint32_t idx, config_node_t** pnode)
+{
+    config_node_t* ret;
+    config_node_t* group_node = nullptr;
+
+    if (!file || !path || !pnode)
+        return -1;
+
+    /* Grab the group node */
+    if (config_file_get_node(file, path, &group_node) || !group_node)
+        return -1;
+
+    /* Invalid path =( */
+    if (group_node->type != CFG_NODE_TYPE_GROUP)
+        return -1;
+
+    /* Get the group list */
+    ret = group_node->group_value;
+
+    /* Loop over the nodes in this group */
+    for (uint32_t i = 0; ret && i < idx; i++)
+        ret = ret->next;
+
+    if (!ret)
+        return -1;
+
+    *pnode = ret;
     return 0;
 }

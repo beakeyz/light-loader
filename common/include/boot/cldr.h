@@ -77,7 +77,7 @@ typedef struct config_node {
 
         void* value;
     };
-    struct config_node *next, *list_next;
+    struct config_node* next;
 } config_node_t;
 
 typedef struct config_file {
@@ -95,6 +95,7 @@ typedef struct config_file {
 extern config_file_t* open_config_file(const char* path);
 extern void close_config_file(config_file_t* file);
 
-extern int config_file_get_node(config_file_t* file, const char* path, config_node_t** pnode);
+int config_file_get_node(config_file_t* file, const char* path, config_node_t** pnode);
+int config_file_get_node_at(config_file_t* file, const char* path, uint32_t idx, config_node_t** pnode);
 
 #endif // !__LIGHTLOADER_CONFIG_LOADER_H__
