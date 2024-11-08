@@ -9,7 +9,7 @@ struct light_ctx;
 struct disk_dev;
 
 /* We get one page of kernel configuration */
-#define LIGHT_BOOT_KERNEL_OPTS_LEN 4096
+#define LIGHT_BOOT_KERNEL_OPTS_LEN 0x1000
 
 typedef enum LIGHT_BOOT_METHOD {
     LBM_MULTIBOOT2, /* Load a kernel with the multiboot2 protocol */

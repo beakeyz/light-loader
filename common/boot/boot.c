@@ -588,40 +588,67 @@ default_and_return:
     return LBM_RAW;
 }
 
-static inline char* __get_light_kernel_opts(config_file_t* file)
+static inline char* __get_quick_node_string(config_file_t* file, const char* path)
 {
     config_node_t* value_node = nullptr;
 
-    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
-        goto default_and_return;
+    if (config_file_get_node(file, path, &value_node) || !value_node)
+        return nullptr;
 
-    return (char*)value_node->str_value;
-default_and_return:
-    return "";
+    if (value_node->type != CFG_NODE_TYPE_STRING)
+        return nullptr;
+
+    return (char*)strdup_ex(value_node->str_value, strlen(value_node->str_value));
+}
+
+static inline char* __get_light_kernel_opts(config_file_t* file)
+{
+    char* opts;
+    char* ret;
+
+    opts = __get_quick_node_string(file, "boot.kernel_cmd");
+
+    if (!opts)
+        return nullptr;
+
+    /* Try to allocate a buffer for the kernel opts */
+    ret = heap_allocate(LIGHT_BOOT_KERNEL_OPTS_LEN);
+
+    /* Fuck */
+    if (!ret)
+        return nullptr;
+
+    /* Clear the buffer */
+    memset(ret, 0, LIGHT_BOOT_KERNEL_OPTS_LEN);
+
+    /* Copy these fuckers in */
+    memcpy(ret, opts, strlen(opts));
+
+    return ret;
 }
 
 static inline char* __get_light_kernel_image(config_file_t* file)
 {
-    config_node_t* value_node = nullptr;
+    char* ret;
 
-    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
-        goto default_and_return;
+    ret = __get_quick_node_string(file, "boot.kernel_image");
 
-    return (char*)value_node->str_value;
-default_and_return:
-    return (char*)default_kernel_path;
+    if (!ret)
+        return (char*)default_kernel_path;
+
+    return ret;
 }
 
 static inline char* __get_light_ramdisk_image(config_file_t* file)
 {
-    config_node_t* value_node = nullptr;
+    char* ret;
 
-    if (config_file_get_node(file, "boot.protocol", &value_node) || !value_node)
-        goto default_and_return;
+    ret = __get_quick_node_string(file, "boot.ramdisk_image");
 
-    return (char*)value_node->str_value;
-default_and_return:
-    return (char*)default_ramdisk_path;
+    if (!ret)
+        return (char*)default_ramdisk_path;
+
+    return ret;
 }
 
 void boot_config_from_file(light_boot_config_t* config, config_file_t* file)
@@ -632,7 +659,7 @@ void boot_config_from_file(light_boot_config_t* config, config_file_t* file)
     config->cfg_file = file;
     config->flags = LBOOT_FLAG_HAS_FILE;
     config->method = __get_light_boot_protocol(file);
-    config->kernel_opts = __get_light_kernel_opts(file);
     config->kernel_image = __get_light_kernel_image(file);
     config->ramdisk_image = __get_light_ramdisk_image(file);
+    config->kernel_opts = __get_light_kernel_opts(file);
 }
